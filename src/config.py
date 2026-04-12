@@ -41,6 +41,9 @@ class Settings(BaseSettings):
 
     # --- News / Search ----------------------------------------------------
     brave_api_key: str = Field(..., description="Brave Search API key.")
+    brave_search_timeout_s: float = Field(
+        default=10.0, gt=0.0, description="Brave Search HTTP timeout (seconds)."
+    )
 
     # --- Messaging --------------------------------------------------------
     telegram_bot_token: str = Field(..., description="Telegram bot token.")
