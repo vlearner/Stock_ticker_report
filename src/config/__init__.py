@@ -1,9 +1,18 @@
-"""Runtime configuration loaded from environment / ``.env``.
+"""Runtime configuration package.
 
-All configuration is centralized here in a single
-:class:`pydantic_settings.BaseSettings` subclass and exported as the module-
-level ``settings`` singleton. Every other module imports ``settings`` from
-here — do not re-read environment variables anywhere else.
+Each sub-module owns its own settings group and reads ``.env`` independently,
+so any component can be imported and run standalone with only the keys it
+needs.
+
+Sub-modules
+-----------
+- :mod:`src.config.brave`           — ``BraveSettings`` / ``brave_settings``
+- :mod:`src.config.yfinance_settings` — ``YFinanceSettings`` / ``yfinance_settings``
+
+Backward-compatible re-exports
+-------------------------------
+The top-level ``Settings`` class and ``settings`` singleton are kept here so
+that existing modules continue to work unchanged.
 """
 
 from __future__ import annotations
@@ -13,12 +22,15 @@ from typing import Literal
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from src.config.brave import BraveSettings, brave_settings
+from src.config.yfinance_settings import YFinanceSettings, yfinance_settings
+
 
 class Settings(BaseSettings):
-    """Typed application settings.
+    """Full application settings — requires all service keys to be present.
 
-    Environment variables are resolved case-insensitively. A ``.env`` file
-    at the project root is loaded automatically if present.
+    Used by the complete pipeline (LLM + Telegram + yfinance).  Components
+    that run standalone should import their own settings group instead.
     """
 
     model_config = SettingsConfigDict(
@@ -39,8 +51,11 @@ class Settings(BaseSettings):
         description="Larger model used by the Analyst agent.",
     )
 
-    # --- News / Search ----------------------------------------------------
+    # --- News / Search — delegated to BraveSettings -----------------------
     brave_api_key: str = Field(..., description="Brave Search API key.")
+    brave_search_timeout_s: float = Field(
+        default=10.0, gt=0.0, description="Brave Search HTTP timeout (seconds)."
+    )
 
     # --- Messaging --------------------------------------------------------
     telegram_bot_token: str = Field(..., description="Telegram bot token.")
@@ -94,4 +109,14 @@ class Settings(BaseSettings):
 
 
 settings = Settings()  # type: ignore[call-arg]
-"""Module-level singleton. Import this — never construct ``Settings()`` directly."""
+"""Full-app singleton. Requires all service keys. Import ``brave_settings``
+or ``yfinance_settings`` instead when you only need a specific integration."""
+
+__all__ = [
+    "Settings",
+    "settings",
+    "BraveSettings",
+    "brave_settings",
+    "YFinanceSettings",
+    "yfinance_settings",
+]

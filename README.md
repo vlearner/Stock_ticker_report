@@ -46,6 +46,7 @@ Telegram reply
 | LLM | [Groq](https://console.groq.com) (`llama-3.1-8b-instant` / `llama-3.3-70b-versatile`) |
 | Financial data | [yfinance](https://github.com/ranaroussi/yfinance) |
 | News search | [Brave Search API](https://brave.com/search/api/) |
+| REST API | [FastAPI](https://fastapi.tiangolo.com) + [Uvicorn](https://www.uvicorn.org) |
 | Messaging | [python-telegram-bot](https://python-telegram-bot.org) |
 | Data validation | [Pydantic v2](https://docs.pydantic.dev) |
 | Observability | [LangSmith](https://smith.langchain.com) |
@@ -110,10 +111,58 @@ MAX_CRITIC_ITERATIONS=2
 PIPELINE_WARNING_THRESHOLD_S=8.0
 ```
 
-### 4. Run the bot
+### 4. Run the REST API (local testing)
+
+The API lets you test each tool independently — no Telegram setup required.
+Only the keys relevant to the routes you call need to be in `.env`.
+
+```bash
+python -m src.api.app
+```
+
+| URL | Description |
+|---|---|
+| `http://localhost:8000/docs` | Swagger UI — interactive browser testing |
+| `http://localhost:8000/redoc` | ReDoc — clean API reference |
+| `GET /api/v1/news?ticker=AAPL` | Fetch recent Brave Search news (requires `BRAVE_API_KEY`) |
+| `GET /api/v1/news?ticker=TSLA&count=10` | Up to 20 results |
+
+**Test with curl:**
+```bash
+curl "http://localhost:8000/api/v1/news?ticker=AAPL&count=5" | python3 -m json.tool
+```
+
+**Minimum `.env` for the news route:**
+```dotenv
+BRAVE_API_KEY=your_brave_api_key
+```
+
+### 5. Run the Telegram bot (full pipeline)
 
 ```bash
 python -m src.main
+```
+
+---
+
+## Project Structure
+
+```
+src/
+├── config/
+│   ├── __init__.py      # Full Settings (all keys) — backward-compat
+│   └── brave.py         # BraveSettings — only needs BRAVE_API_KEY
+├── api/
+│   ├── app.py           # FastAPI app + uvicorn entry point
+│   └── routes/
+│       └── news.py      # GET /api/v1/news
+├── tools/
+│   ├── brave_tools.py   # fetch_ticker_news() + LangChain @tool wrapper
+│   └── yfinance_tools.py
+├── agents/              # LangGraph agent stubs
+├── graph/               # Pipeline definition
+├── schemas/             # Pydantic data contracts
+└── main.py              # Telegram bot entry point
 ```
 
 ---
