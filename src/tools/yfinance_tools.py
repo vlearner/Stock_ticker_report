@@ -4,11 +4,23 @@ yfinance itself is a blocking library. To satisfy the project's strict
 "no synchronous blocking calls" rule, every network-touching call is
 dispatched to a worker thread via :func:`asyncio.to_thread` and bounded
 by :func:`asyncio.wait_for` using
-``settings.yfinance_timeout_s``. Transient failures are retried
-``settings.yfinance_retries`` times; terminal failures raise a typed
-:class:`YFinanceFetchError` so upstream agents can translate them into
-structured warnings rather than crashing the pipeline
+``yfinance_settings.yfinance_timeout_s``. Transient failures are retried
+``yfinance_settings.yfinance_retries`` times; terminal failures raise a
+typed :class:`YFinanceFetchError` so upstream agents can translate them
+into structured warnings rather than crashing the pipeline
 (Pattern 6 — Exception Handling and Recovery).
+
+Public surface
+--------------
+- :func:`fetch_fundamentals`     — plain async function; called by API routes
+  and any code that does not need the LangChain tool wrapper.
+- :func:`fetch_moving_averages`  — plain async function.
+- :func:`fetch_volume_data`      — plain async function.
+- :func:`fetch_ticker_validation` — plain async function.
+- :func:`get_ticker_fundamentals` — LangChain ``@tool`` wrapper.
+- :func:`get_moving_averages`    — LangChain ``@tool`` wrapper.
+- :func:`get_volume_data`        — LangChain ``@tool`` wrapper.
+- :func:`validate_ticker`        — LangChain ``@tool`` wrapper.
 
 Tools return Pydantic models (never raw dicts) — this keeps the inter-agent
 contract enforced at the tool boundary (Pattern 4 — Tool Use).
@@ -26,7 +38,7 @@ import yfinance as yf
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-from src.config import settings
+from src.config.yfinance_settings import yfinance_settings
 from src.schemas.ticker_data import (
     Fundamentals,
     MovingAverages,
@@ -111,14 +123,14 @@ async def _run_with_retry(
         YFinanceFetchError: If every attempt (initial + retries) fails.
     """
 
-    attempts = settings.yfinance_retries + 1
+    attempts = yfinance_settings.yfinance_retries + 1
     last_error: Exception | None = None
 
     for attempt in range(1, attempts + 1):
         try:
             return await asyncio.wait_for(
                 asyncio.to_thread(fn, *args, **kwargs),
-                timeout=settings.yfinance_timeout_s,
+                timeout=yfinance_settings.yfinance_timeout_s,
             )
         except asyncio.TimeoutError as exc:
             last_error = exc
@@ -231,27 +243,26 @@ def _sma_or_none(closes: pd.Series, window: int) -> float | None:
 
 
 # ---------------------------------------------------------------------------
-# Public tools
+# Core async functions — used by API routes and the LangChain tools
 # ---------------------------------------------------------------------------
 
 
-@tool("get_ticker_fundamentals", args_schema=TickerArg)
-async def get_ticker_fundamentals(ticker: str) -> Fundamentals:
+async def fetch_fundamentals(ticker: str) -> Fundamentals:
     """Fetch fundamentals for a single ticker.
 
-    Returns PE ratio, EPS, market cap, 52-week high/low, dividend yield,
-    company name, and currency. Any field yfinance cannot populate is
-    returned as ``None`` — callers must tolerate partial results.
+    This is the primary callable for non-agent code (API routes, CLI tests,
+    notebooks). The LangChain :func:`get_ticker_fundamentals` tool delegates
+    here.
+
+    Returns a :class:`~src.schemas.ticker_data.Fundamentals` instance. Any
+    field yfinance cannot populate is returned as ``None``.
 
     Args:
         ticker: Stock symbol (case-insensitive, uppercased internally).
 
-    Returns:
-        A :class:`~src.schemas.ticker_data.Fundamentals` instance.
-
     Raises:
-        YFinanceFetchError: If the underlying yfinance call fails after
-            all retries.
+        YFinanceFetchError: If the underlying yfinance call fails after all
+            retries.
     """
 
     symbol = ticker.upper()
@@ -271,19 +282,14 @@ async def get_ticker_fundamentals(ticker: str) -> Fundamentals:
     )
 
 
-@tool("get_moving_averages", args_schema=TickerArg)
-async def get_moving_averages(ticker: str) -> MovingAverages:
+async def fetch_moving_averages(ticker: str) -> MovingAverages:
     """Compute 50-, 100-, and 200-day simple moving averages.
 
-    Pulls ~1 year of daily closes via yfinance and computes a rolling mean
-    for each window. If the available history is shorter than a given
-    window, that window's SMA is ``None``.
+    This is the primary callable for non-agent code. The LangChain
+    :func:`get_moving_averages` tool delegates here.
 
     Args:
-        ticker: Stock symbol.
-
-    Returns:
-        A :class:`~src.schemas.ticker_data.MovingAverages` instance.
+        ticker: Stock symbol (case-insensitive, uppercased internally).
 
     Raises:
         YFinanceFetchError: If the history fetch fails after all retries.
@@ -311,19 +317,16 @@ async def get_moving_averages(ticker: str) -> MovingAverages:
     )
 
 
-@tool("get_volume_data", args_schema=TickerArg)
-async def get_volume_data(ticker: str) -> VolumeData:
+async def fetch_volume_data(ticker: str) -> VolumeData:
     """Fetch current and average trading volume.
 
-    Uses the ``.info`` dictionary for average volume and the most recent
-    daily bar from ``.history()`` for current volume. Missing fields become
-    ``None`` rather than raising.
+    This is the primary callable for non-agent code. The LangChain
+    :func:`get_volume_data` tool delegates here. If both the info and history
+    calls fail, raises :class:`YFinanceFetchError`. Otherwise degrades
+    gracefully with ``None`` fields.
 
     Args:
-        ticker: Stock symbol.
-
-    Returns:
-        A :class:`~src.schemas.ticker_data.VolumeData` instance.
+        ticker: Stock symbol (case-insensitive, uppercased internally).
 
     Raises:
         YFinanceFetchError: If both the info and history calls fail.
@@ -378,24 +381,17 @@ async def get_volume_data(ticker: str) -> VolumeData:
     )
 
 
-@tool("validate_ticker", args_schema=TickerArg)
-async def validate_ticker(ticker: str) -> TickerValidationResult:
+async def fetch_ticker_validation(ticker: str) -> TickerValidationResult:
     """Check whether ``ticker`` resolves to a real, tradeable instrument.
 
-    Never raises — failures (network error, unknown ticker, empty info
-    response) are reported as ``valid=False`` with a ``reason`` string so
-    the Orchestrator can emit a friendly error message without special
-    exception handling.
+    This is the primary callable for non-agent code. The LangChain
+    :func:`validate_ticker` tool delegates here.
 
-    A ticker is considered valid iff yfinance returns an ``info`` dict with
-    a non-empty ``shortName``/``longName`` **and** a non-None
-    ``regularMarketPrice`` (or equivalent quote field).
+    Never raises — failures are reported as ``valid=False`` with a ``reason``
+    string.
 
     Args:
         ticker: Stock symbol to validate.
-
-    Returns:
-        A :class:`~src.schemas.ticker_data.TickerValidationResult`.
     """
 
     symbol = ticker.upper()
@@ -442,9 +438,103 @@ async def validate_ticker(ticker: str) -> TickerValidationResult:
     )
 
 
+# ---------------------------------------------------------------------------
+# LangChain tool wrappers
+# ---------------------------------------------------------------------------
+
+
+@tool("get_ticker_fundamentals", args_schema=TickerArg)
+async def get_ticker_fundamentals(ticker: str) -> Fundamentals:
+    """Fetch fundamentals for a single ticker.
+
+    LangChain tool wrapper around :func:`fetch_fundamentals`. Use that
+    function directly when you don't need the tool metadata.
+
+    Returns PE ratio, EPS, market cap, 52-week high/low, dividend yield,
+    company name, and currency. Any field yfinance cannot populate is
+    returned as ``None`` — callers must tolerate partial results.
+
+    Args:
+        ticker: Stock symbol (case-insensitive, uppercased internally).
+
+    Returns:
+        A :class:`~src.schemas.ticker_data.Fundamentals` instance.
+
+    Raises:
+        YFinanceFetchError: If the underlying yfinance call fails after
+            all retries.
+    """
+
+    return await fetch_fundamentals(ticker)
+
+
+@tool("get_moving_averages", args_schema=TickerArg)
+async def get_moving_averages(ticker: str) -> MovingAverages:
+    """Compute 50-, 100-, and 200-day simple moving averages.
+
+    LangChain tool wrapper around :func:`fetch_moving_averages`. Use that
+    function directly when you don't need the tool metadata.
+
+    Args:
+        ticker: Stock symbol (case-insensitive, uppercased internally).
+
+    Returns:
+        A :class:`~src.schemas.ticker_data.MovingAverages` instance.
+
+    Raises:
+        YFinanceFetchError: If the history fetch fails after all retries.
+    """
+
+    return await fetch_moving_averages(ticker)
+
+
+@tool("get_volume_data", args_schema=TickerArg)
+async def get_volume_data(ticker: str) -> VolumeData:
+    """Fetch current and average trading volume.
+
+    LangChain tool wrapper around :func:`fetch_volume_data`. Use that
+    function directly when you don't need the tool metadata.
+
+    Args:
+        ticker: Stock symbol.
+
+    Returns:
+        A :class:`~src.schemas.ticker_data.VolumeData` instance.
+
+    Raises:
+        YFinanceFetchError: If both the info and history calls fail.
+    """
+
+    return await fetch_volume_data(ticker)
+
+
+@tool("validate_ticker", args_schema=TickerArg)
+async def validate_ticker(ticker: str) -> TickerValidationResult:
+    """Check whether ``ticker`` resolves to a real, tradeable instrument.
+
+    LangChain tool wrapper around :func:`fetch_ticker_validation`. Use that
+    function directly when you don't need the tool metadata.
+
+    Never raises — failures are reported as ``valid=False`` with a ``reason``
+    string.
+
+    Args:
+        ticker: Stock symbol to validate.
+
+    Returns:
+        A :class:`~src.schemas.ticker_data.TickerValidationResult`.
+    """
+
+    return await fetch_ticker_validation(ticker)
+
+
 __all__ = [
     "TickerArg",
     "YFinanceFetchError",
+    "fetch_fundamentals",
+    "fetch_moving_averages",
+    "fetch_volume_data",
+    "fetch_ticker_validation",
     "get_moving_averages",
     "get_ticker_fundamentals",
     "get_volume_data",

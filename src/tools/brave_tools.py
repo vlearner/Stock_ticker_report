@@ -10,6 +10,13 @@ needed (unlike yfinance). Transient 5xx / transport errors are retried
 once; 4xx errors return an empty bundle immediately. The tool itself
 never raises — callers check ``len(bundle.items) == 0`` to detect
 failure (Pattern 6 — Exception Handling and Recovery).
+
+Public surface
+--------------
+- :func:`fetch_ticker_news` — plain async function; called by API routes
+  and any code that does not need the LangChain tool wrapper.
+- :func:`search_ticker_news` — LangChain ``@tool`` wrapper around
+  ``fetch_ticker_news``; used by the LangGraph agent graph.
 """
 
 from __future__ import annotations
@@ -22,7 +29,7 @@ import httpx
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-from src.config import settings
+from src.config.brave import brave_settings
 from src.schemas.ticker_data import NewsBundle, NewsItem
 
 logger = logging.getLogger(__name__)
@@ -162,7 +169,7 @@ async def _brave_search(query: str, count: int) -> dict[str, Any]:
         BraveFetchError: On any non-recoverable HTTP or transport failure.
     """
     headers = {
-        "X-Subscription-Token": settings.brave_api_key,
+        "X-Subscription-Token": brave_settings.brave_api_key,
         "Accept": "application/json",
     }
     params = {
@@ -170,7 +177,7 @@ async def _brave_search(query: str, count: int) -> dict[str, Any]:
         "count": count,
         "freshness": "pw",
     }
-    timeout = httpx.Timeout(timeout=settings.brave_search_timeout_s)
+    timeout = httpx.Timeout(timeout=brave_settings.brave_search_timeout_s)
 
     last_error: Exception | None = None
     last_status: int | None = None
@@ -226,13 +233,15 @@ async def _brave_search(query: str, count: int) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Public tool
+# Core async function — used by API routes and the LangChain tool
 # ---------------------------------------------------------------------------
 
 
-@tool("search_ticker_news", args_schema=NewsSearchArg)
-async def search_ticker_news(ticker: str, num_results: int = 5) -> NewsBundle:
-    """Search for recent news about a stock ticker via Brave Web Search.
+async def fetch_ticker_news(ticker: str, num_results: int = 5) -> NewsBundle:
+    """Fetch recent news for a stock ticker via Brave Web Search.
+
+    This is the primary callable for non-agent code (API routes, CLI tests,
+    notebooks). The LangChain :func:`search_ticker_news` tool delegates here.
 
     Returns a :class:`~src.schemas.ticker_data.NewsBundle` with up to
     ``num_results`` items. Sentiment is always ``"unknown"`` — the Analyst
@@ -242,9 +251,6 @@ async def search_ticker_news(ticker: str, num_results: int = 5) -> NewsBundle:
     Args:
         ticker: Stock symbol (case-insensitive, uppercased internally).
         num_results: How many results to fetch (1–20, default 5).
-
-    Returns:
-        A :class:`~src.schemas.ticker_data.NewsBundle` instance.
     """
     symbol = ticker.upper()
     query = f"{symbol} stock news"
@@ -259,4 +265,31 @@ async def search_ticker_news(ticker: str, num_results: int = 5) -> NewsBundle:
     return _parse_results(symbol, raw_results)
 
 
-__all__ = ["search_ticker_news", "BraveFetchError", "NewsSearchArg"]
+# ---------------------------------------------------------------------------
+# LangChain tool wrapper
+# ---------------------------------------------------------------------------
+
+
+@tool("search_ticker_news", args_schema=NewsSearchArg)
+async def search_ticker_news(ticker: str, num_results: int = 5) -> NewsBundle:
+    """Search for recent news about a stock ticker via Brave Web Search.
+
+    LangChain tool wrapper around :func:`fetch_ticker_news`. Use that
+    function directly when you don't need the tool metadata.
+
+    Args:
+        ticker: Stock symbol (case-insensitive, uppercased internally).
+        num_results: How many results to fetch (1–20, default 5).
+
+    Returns:
+        A :class:`~src.schemas.ticker_data.NewsBundle` instance.
+    """
+    return await fetch_ticker_news(ticker, num_results)
+
+
+__all__ = [
+    "fetch_ticker_news",
+    "search_ticker_news",
+    "BraveFetchError",
+    "NewsSearchArg",
+]
