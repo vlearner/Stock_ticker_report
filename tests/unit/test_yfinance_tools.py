@@ -33,6 +33,7 @@ import pytest
 from pydantic import ValidationError
 
 from src.config import settings
+from src.config.yfinance_settings import yfinance_settings
 from src.tools.yfinance_tools import (
     TickerArg,
     YFinanceFetchError,
@@ -311,7 +312,7 @@ class TestRunWithRetry:
         assert result == 42
 
     async def test_success_after_one_transient_failure(self, monkeypatch):
-        monkeypatch.setattr(settings, "yfinance_retries", 1)
+        monkeypatch.setattr(yfinance_settings, "yfinance_retries", 1)
         attempts: list[int] = []
 
         def flaky() -> str:
@@ -325,7 +326,7 @@ class TestRunWithRetry:
         assert len(attempts) == 2
 
     async def test_all_attempts_fail_raises_yfinance_error(self, monkeypatch):
-        monkeypatch.setattr(settings, "yfinance_retries", 0)
+        monkeypatch.setattr(yfinance_settings, "yfinance_retries", 0)
 
         def always_fails():
             raise ValueError("boom")
@@ -339,7 +340,7 @@ class TestRunWithRetry:
         assert isinstance(err.original, ValueError)
 
     async def test_timeout_raises_yfinance_error(self, monkeypatch):
-        monkeypatch.setattr(settings, "yfinance_retries", 0)
+        monkeypatch.setattr(yfinance_settings, "yfinance_retries", 0)
 
         with patch(
             "src.tools.yfinance_tools.asyncio.wait_for",
@@ -354,7 +355,7 @@ class TestRunWithRetry:
         assert isinstance(err.original, asyncio.TimeoutError)
 
     async def test_exhausted_retries_use_last_error(self, monkeypatch):
-        monkeypatch.setattr(settings, "yfinance_retries", 2)
+        monkeypatch.setattr(yfinance_settings, "yfinance_retries", 2)
         errors = [RuntimeError("first"), RuntimeError("second"), RuntimeError("third")]
         call_index = 0
 
