@@ -3,6 +3,8 @@
 Step 3: Graph skeleton (routing, reflection loop, node inventory).
 Step 4: Real agent implementations wired in (data_fetcher, news_fetcher,
         analyst, formatter, orchestrator).
+Step 6: Orchestrator upgraded to LLM-based classification (ChatGroq
+        llama-3.1-8b-instant) with heuristic fallback.
 """
 
 from __future__ import annotations
@@ -23,8 +25,9 @@ from src.schemas.agent_state import AgentState
 
 
 def orchestrator_node(state: AgentState) -> dict:
-    """Classify intent, extract tickers, and set route + format_style."""
-    return orchestrator.run(state)
+    """Classify intent via LLM, extract tickers, and set route + format_style."""
+    import asyncio
+    return asyncio.get_event_loop().run_until_complete(orchestrator.run(state))
 
 
 def data_fetcher_node(state: AgentState) -> dict:
