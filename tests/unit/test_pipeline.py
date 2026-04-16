@@ -135,12 +135,16 @@ class TestNewsOnlyRoute:
         result = _invoke("news TSLA")
         assert "TSLA" in result["tickers"]
 
-    def test_news_only_no_data_fetcher_run(self):
-        """News-only route should skip data_fetcher, so data_by_ticker should
-        NOT be populated (it's only set by data_fetcher_node)."""
+    def test_news_only_no_fundamentals(self):
+        """News-only route skips data_fetcher, so TickerData should have no
+        fundamentals/moving_averages/volume — only news may be populated."""
         result = _invoke("news TSLA")
-        # data_by_ticker is not set because the path skips data_fetcher
-        assert result.get("data_by_ticker") is None or result.get("data_by_ticker") == {}
+        data = result.get("data_by_ticker", {})
+        # news_fetcher creates TickerData with news only — no yfinance slices
+        for td in data.values():
+            assert td.fundamentals is None
+            assert td.moving_averages is None
+            assert td.volume is None
 
 
 # ---------------------------------------------------------------------------

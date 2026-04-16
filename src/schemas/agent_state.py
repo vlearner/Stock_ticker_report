@@ -29,6 +29,15 @@ Route = Literal[
     "rate_limited",
 ]
 
+FormatStyle = Literal["minimal", "rich", "news"]
+"""Telegram message style set by the Orchestrator.
+
+- ``"minimal"``  — ticker header + summary only (plain ticker query).
+- ``"rich"``     — header + fundamentals snapshot + summary + key points
+                   (detail keywords present, or comparison route).
+- ``"news"``     — ticker header + news headlines (news_only route).
+"""
+
 
 class AgentState(TypedDict, total=False):
     """Shared state flowing through the LangGraph pipeline.
@@ -40,6 +49,8 @@ class AgentState(TypedDict, total=False):
 
         route: Chosen execution path picked by the Orchestrator.
         tickers: Normalized uppercase tickers extracted from the message.
+        format_style: Formatter style chosen by the Orchestrator
+            (``"minimal"``, ``"rich"``, or ``"news"``).
 
         data_by_ticker: Per-ticker :class:`TickerData` populated by the
             DataFetcher and NewsFetcher agents. Keyed by ticker to support
@@ -74,6 +85,7 @@ class AgentState(TypedDict, total=False):
     # --- Routing ----------------------------------------------------------
     route: Route
     tickers: list[str]
+    format_style: FormatStyle
 
     # --- Pipeline results -------------------------------------------------
     data_by_ticker: dict[str, TickerData]
