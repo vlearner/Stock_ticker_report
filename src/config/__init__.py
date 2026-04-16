@@ -112,6 +112,19 @@ settings = Settings()  # type: ignore[call-arg]
 """Full-app singleton. Requires all service keys. Import ``brave_settings``
 or ``yfinance_settings`` instead when you only need a specific integration."""
 
+# ---------------------------------------------------------------------------
+# Push LangSmith vars into os.environ so LangChain's tracer can read them.
+# pydantic-settings reads .env into Python objects but does NOT write back
+# to os.environ — LangSmith checks os.environ directly at trace time.
+# ---------------------------------------------------------------------------
+import os as _os
+
+if settings.langchain_tracing_v2:
+    _os.environ.setdefault("LANGCHAIN_TRACING_V2", "true")
+if settings.langchain_api_key:
+    _os.environ.setdefault("LANGCHAIN_API_KEY", settings.langchain_api_key)
+_os.environ.setdefault("LANGCHAIN_PROJECT", settings.langchain_project)
+
 __all__ = [
     "Settings",
     "settings",
