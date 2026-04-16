@@ -36,7 +36,7 @@ async def get_ticker_news(
     ticker: str = Query(
         ...,
         description="Stock ticker symbol (case-insensitive).",
-        example="AAPL",
+        examples={"apple": {"value": "AAPL"}},
         min_length=1,
         max_length=15,
     ),

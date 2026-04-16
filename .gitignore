@@ -53,6 +53,10 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
+.claude
+.env
+.idea
+.venv
 
 # Translations
 *.mo

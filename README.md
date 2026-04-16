@@ -10,21 +10,31 @@ A conversational financial analysis bot that answers stock queries via **Telegra
 Telegram message
       │
       ▼
- Orchestrator  ──── classifies intent, extracts tickers, routes
+ Orchestrator  ──── classifies intent, extracts tickers
+      │            sets route + format_style (minimal/rich/news)
       │
       ├──▶  Data Fetcher  ──── yfinance (fundamentals, SMAs, volume)
+      │                        3 concurrent calls per ticker
+      │                        weighted completeness score (50/30/20)
       │
-      ├──▶  News Fetcher  ──── Brave Search (headlines + sentiment)
+      ├──▶  News Fetcher  ──── Brave Search (headlines)
+      │                        only called when route = news_only
+      │                        or message contains news keywords
       │
       ▼
-   Analyst  ──── generates plain-language summary (Groq 70B LLM)
+   Analyst  ──── ChatGroq llama-3.3-70b-versatile
+      │          structured output (AnalystOutput schema)
+      │          parallel LLM calls for comparison queries
       │
       ▼
    Critic   ──── validates output (grounded, concise, no advice)
+      │          loops back to Analyst up to max_critic_iterations
       │
       ▼
-  Formatter ──── packages Markdown message
-      │
+  Formatter ──── 3 Telegram styles driven by format_style:
+      │          minimal  — ticker + summary
+      │          rich     — fundamentals snapshot + SMAs + key points
+      │          news     — headlines with sources
       ▼
 Telegram reply
 ```
@@ -159,8 +169,13 @@ src/
 ├── tools/
 │   ├── brave_tools.py   # fetch_ticker_news() + LangChain @tool wrapper
 │   └── yfinance_tools.py
-├── agents/              # LangGraph agent stubs
-├── graph/               # Pipeline definition
+├── agents/
+│   ├── orchestrator.py  # heuristic routing → route + format_style
+│   ├── data_fetcher.py  # 3 concurrent yfinance calls, completeness score
+│   ├── news_fetcher.py  # Brave Search with smart API gating
+│   ├── analyst.py       # ChatGroq structured output, parallel per ticker
+│   └── formatter.py     # minimal / rich / news Telegram styles
+├── graph/               # Pipeline definition (nodes + routing)
 ├── schemas/             # Pydantic data contracts
 └── main.py              # Telegram bot entry point
 ```
