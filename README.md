@@ -195,3 +195,62 @@ src/
 .venv/bin/pytest tests/ -x
 ```
 
+---
+
+## Web Demo
+
+A lightweight chat UI is served from `public/` and talks to
+`POST /api/v1/chat`, a keyword-based dispatcher that fans out to the
+existing yfinance and Brave tools — no LangGraph, no LLM in the critical
+path. The full pipeline remains available via the Telegram bot.
+
+### Local development
+
+```bash
+# 1. Install deps (full stack, including langgraph for the Telegram path)
+pip install -r requirements.txt
+
+# 2. Export service keys (all three are still required by the shared
+#    Settings singleton, even though the demo only uses Brave + yfinance)
+export GROQ_API_KEY=...
+export BRAVE_API_KEY=...
+export TELEGRAM_BOT_TOKEN=...
+
+# 3. Run the API; it serves the UI from public/ when
+#    settings.serve_static_ui is true (default).
+uvicorn src.api.app:app --reload
+```
+
+Then open:
+
+- `http://localhost:8000/`       — chat UI
+- `http://localhost:8000/docs`   — Swagger (includes `POST /api/v1/chat`)
+
+Try `AAPL`, `AAPL vs MSFT`, `news TSLA`, or `hi` (help text). Each browser
+tab is capped at 5 queries — close and reopen the tab to reset.
+
+### Deploy to Vercel (Hobby)
+
+```bash
+vercel --prod
+```
+
+or connect the GitHub repo through the Vercel dashboard. The project
+already ships:
+
+- `vercel.json` — routes `/api/*` to the Python function and the rest to
+  `public/` served from Vercel's CDN.
+- `api/index.py` — re-exports the FastAPI `app` for `@vercel/python`.
+- `api/requirements.txt` — slimmed deps (no langgraph / langchain /
+  telegram) to stay under the 50 MB serverless function size limit.
+- `.vercelignore` — excludes `src/agents/`, `src/graph/`, `src/bot/`,
+  `tests/`, and `data/` from the function bundle.
+
+Set the same three environment variables in the Vercel dashboard:
+`GROQ_API_KEY`, `BRAVE_API_KEY`, `TELEGRAM_BOT_TOKEN`.
+
+> The 10 s Vercel Hobby timeout plus cold-start is too tight for the full
+> LangGraph + critic loop, so the demo endpoint deliberately bypasses it
+> and calls the tool functions directly. The LangGraph pipeline stays in
+> place for the Telegram path.
+
