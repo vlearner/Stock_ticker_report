@@ -25,15 +25,18 @@ from __future__ import annotations
 
 import logging
 import time
+from pathlib import Path
 from typing import Literal
 
 from langchain_groq import ChatGroq
 from pydantic import BaseModel, Field
 
 from src.config import settings
-from src.schemas.agent_state import AgentState, FormatStyle
+from src.schemas.agent_state import AgentState
 
 logger = logging.getLogger(__name__)
+
+_PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
 
 # ---------------------------------------------------------------------------
 # Structured output schema
@@ -70,34 +73,7 @@ class OrchestratorOutput(BaseModel):
 # LLM client — built once, reused across calls
 # ---------------------------------------------------------------------------
 
-_SYSTEM_PROMPT = """You are an intent classifier for a stock analysis bot.
-
-Given a user message, extract:
-1. route — one of: single, comparison, news_only, invalid
-2. tickers — uppercase stock symbols only (e.g. AAPL, MSFT, TSLA). Max 2. Empty if invalid.
-3. format_style — one of: minimal, rich, news
-
-Rules:
-- comparison + rich   → message compares two tickers ("vs", "compare", "versus")
-- news_only  + news   → message asks for news, headlines, or recent updates ONLY
-- single     + rich   → message has words like: analysis, report, detail, full, deep, overview
-- single     + minimal→ plain ticker query with no detail keywords
-- invalid    + minimal→ no valid ticker symbol found
-
-Ticker extraction rules:
-- Only extract real stock ticker symbols (1–5 uppercase letters)
-- Ignore common words even if they look like tickers (e.g. NEWS, GIVE, SHOW, CHECK, TELL)
-- If unsure whether a word is a ticker, leave it out
-
-Examples:
-  "AAPL"                      → single,   ["AAPL"],         minimal
-  "AAPL analysis"             → single,   ["AAPL"],         rich
-  "AAPL vs MSFT"              → comparison, ["AAPL","MSFT"], rich
-  "TSLA latest news"          → news_only, ["TSLA"],         news
-  "give me NVDA report"       → single,   ["NVDA"],         rich
-  "what is the price of AMZN" → single,   ["AMZN"],         minimal
-  "hello world"               → invalid,  [],               minimal
-"""
+_SYSTEM_PROMPT: str = (_PROMPTS_DIR / "orchestrator_system.txt").read_text(encoding="utf-8")
 
 _llm = ChatGroq(
     model=settings.groq_fast_model,

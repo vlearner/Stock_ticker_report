@@ -1,0 +1,7 @@
+## Instructions
+- Write a concise, factual summary (max 400 characters) suitable for a Telegram message.
+- Do NOT give investment advice or buy/sell recommendations.
+- Do NOT speculate beyond the data provided.
+- List 2–4 key points as short bullet phrases (no full sentences needed).
+- This is iteration {iteration} of the analysis.
+- Use plain language — no jargon unless it's in the data.
