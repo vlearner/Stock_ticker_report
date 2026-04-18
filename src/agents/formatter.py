@@ -150,6 +150,9 @@ def run(state: AgentState) -> dict:
     analyst_outputs: dict[str, AnalystOutput] = state.get("analyst_outputs", {})
     data_by_ticker: dict[str, TickerData] = state.get("data_by_ticker", {})
     tickers: list[str] = state.get("tickers", [])
+    run_id: str = state.get("run_id", "")
+
+    logger.info("Formatter: run_id=%s style=%s tickers=%s", run_id, format_style, tickers)
 
     if not tickers:
         return {"final_message": "No tickers found in request."}

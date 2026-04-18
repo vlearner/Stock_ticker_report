@@ -5,14 +5,19 @@ Step 4: Real agent implementations wired in (data_fetcher, news_fetcher,
         analyst, formatter, orchestrator).
 Step 6: Orchestrator upgraded to LLM-based classification (ChatGroq
         llama-3.1-8b-instant) with heuristic fallback.
+Security + Logging: correlation_id injected at pipeline entry; per-node latency
+                    logging via @timed_node decorator.
 """
 
 from __future__ import annotations
+
+import uuid
 
 from langgraph.graph import END, START, StateGraph
 
 from src.agents import data_fetcher, formatter, news_fetcher, analyst, orchestrator
 from src.config import settings
+from src.graph.node_timer import timed_node
 from src.schemas.agent_state import AgentState
 
 
@@ -22,29 +27,50 @@ from src.schemas.agent_state import AgentState
 # Each wrapper is a thin adapter that calls the agent's ``run()`` function.
 # Keeping them as named functions (rather than lambdas) makes LangSmith
 # traces readable and lets us patch individual nodes in tests.
+#
+# @timed_node("name") wraps each async node to:
+#   • inject correlation_id + node name into the log context
+#   • emit a structured "node_completed" log line with latency_ms
 
 
+def _inject_correlation_id(state: AgentState) -> dict:
+    """Entry node: assign a correlation_id if one is not already present.
+
+    Every pipeline run gets a UUID that appears in all subsequent log
+    records and error responses.  Callers (REST, Telegram) may pre-set the
+    ID; if they do, it is preserved.
+    """
+    if state.get("correlation_id"):
+        return {}
+    return {"correlation_id": str(uuid.uuid4())}
+
+
+@timed_node("orchestrator")
 async def orchestrator_node(state: AgentState) -> dict:
     """Classify intent via LLM, extract tickers, and set route + format_style."""
     return await orchestrator.run(state)
 
 
+@timed_node("data_fetcher")
 async def data_fetcher_node(state: AgentState) -> dict:
     """Fetch fundamentals, moving averages, and volume from yfinance."""
     return await data_fetcher.run(state)
 
 
+@timed_node("news_fetcher")
 async def news_fetcher_node(state: AgentState) -> dict:
     """Fetch news from Brave Search (only when route or keywords require it)."""
     return await news_fetcher.run(state)
 
 
+@timed_node("analyst")
 async def analyst_node(state: AgentState) -> dict:
     """Generate structured AnalystOutput via ChatGroq (llama-3.3-70b)."""
     return await analyst.run(state)
 
 
-def critic_node(state: AgentState) -> dict:
+@timed_node("critic")
+async def critic_node(state: AgentState) -> dict:
     """Stub: evaluate analyst output against quality criteria (step 7).
 
     Always passes for now — real critique logic is added in step 7.
@@ -60,12 +86,14 @@ def critic_node(state: AgentState) -> dict:
     }
 
 
-def formatter_node(state: AgentState) -> dict:
+@timed_node("formatter")
+async def formatter_node(state: AgentState) -> dict:
     """Format pipeline results into a Telegram-ready message."""
     return formatter.run(state)
 
 
-def error_handler_node(state: AgentState) -> dict:
+@timed_node("error_handler")
+async def error_handler_node(state: AgentState) -> dict:
     """Return a user-friendly message for invalid or rate-limited routes."""
     route = state.get("route", "invalid")
     if route == "rate_limited":
@@ -126,6 +154,7 @@ def build_graph() -> StateGraph:
     graph = StateGraph(AgentState)
 
     # Register nodes
+    graph.add_node("entry", _inject_correlation_id)
     graph.add_node("orchestrator", orchestrator_node)
     graph.add_node("data_fetcher", data_fetcher_node)
     graph.add_node("news_fetcher", news_fetcher_node)
@@ -134,8 +163,9 @@ def build_graph() -> StateGraph:
     graph.add_node("formatter", formatter_node)
     graph.add_node("error_handler", error_handler_node)
 
-    # Entry point
-    graph.add_edge(START, "orchestrator")
+    # Entry point: inject correlation_id, then classify
+    graph.add_edge(START, "entry")
+    graph.add_edge("entry", "orchestrator")
 
     # Orchestrator → subgraph selection
     graph.add_conditional_edges(

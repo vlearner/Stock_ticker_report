@@ -70,6 +70,11 @@ class AgentState(TypedDict, total=False):
         blocked_reason: If the request was rejected by a guardrail, a
             human-readable reason for the refusal.
 
+        correlation_id: Full UUID assigned at pipeline entry — uniquely
+            identifies a single end-to-end run across all log records and
+            error responses.
+        run_id: Short UUID prefix (8 hex chars) generated in the orchestrator
+            node — used to correlate log lines for a single pipeline run.
         start_time: ``time.monotonic()`` captured at pipeline entry — used
             to compute total latency for Pattern 9.
         metrics: Goal metrics evaluated at the end of the run.
@@ -102,6 +107,8 @@ class AgentState(TypedDict, total=False):
     blocked_reason: str | None
 
     # --- Observability ----------------------------------------------------
+    correlation_id: str
+    run_id: str
     start_time: float
     metrics: GoalMetrics | None
     final_message: str | None

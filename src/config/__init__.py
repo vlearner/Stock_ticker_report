@@ -128,6 +128,24 @@ class Settings(BaseSettings):
         ),
     )
 
+    # --- Security ---------------------------------------------------------
+    api_key: str | None = Field(
+        default=None,
+        description=(
+            "Optional API key for the /api/v1/chat endpoint. "
+            "When None, auth is disabled (safe for local dev)."
+        ),
+    )
+
+    # --- Observability ----------------------------------------------------
+    json_logs: bool = Field(
+        default=False,
+        description=(
+            "Emit structured JSON logs (pythonjsonlogger). "
+            "False by default for human-readable dev output."
+        ),
+    )
+
 
 settings = Settings()  # type: ignore[call-arg]
 """Full-app singleton. Requires all service keys. Import ``brave_settings``

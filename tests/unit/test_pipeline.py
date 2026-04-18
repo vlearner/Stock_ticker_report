@@ -240,6 +240,7 @@ class TestReflectionLoop:
 
 class TestGraphNodes:
     EXPECTED_NODES = {
+        "entry",
         "orchestrator",
         "data_fetcher",
         "news_fetcher",

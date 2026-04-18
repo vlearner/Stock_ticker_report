@@ -105,6 +105,8 @@ async def run(state: AgentState) -> dict:
         ``{"data_by_ticker": {ticker: TickerData, ...}}``
     """
     tickers: list[str] = state.get("tickers", [])
+    run_id: str = state.get("run_id", "")
+    logger.info("DataFetcher: run_id=%s tickers=%s", run_id, tickers)
     if not tickers:
         logger.warning("DataFetcher: no tickers in state — returning empty")
         return {"data_by_ticker": {}}
