@@ -24,28 +24,24 @@ from src.schemas.agent_state import AgentState
 # traces readable and lets us patch individual nodes in tests.
 
 
-def orchestrator_node(state: AgentState) -> dict:
+async def orchestrator_node(state: AgentState) -> dict:
     """Classify intent via LLM, extract tickers, and set route + format_style."""
-    import asyncio
-    return asyncio.get_event_loop().run_until_complete(orchestrator.run(state))
+    return await orchestrator.run(state)
 
 
-def data_fetcher_node(state: AgentState) -> dict:
+async def data_fetcher_node(state: AgentState) -> dict:
     """Fetch fundamentals, moving averages, and volume from yfinance."""
-    import asyncio
-    return asyncio.get_event_loop().run_until_complete(data_fetcher.run(state))
+    return await data_fetcher.run(state)
 
 
-def news_fetcher_node(state: AgentState) -> dict:
+async def news_fetcher_node(state: AgentState) -> dict:
     """Fetch news from Brave Search (only when route or keywords require it)."""
-    import asyncio
-    return asyncio.get_event_loop().run_until_complete(news_fetcher.run(state))
+    return await news_fetcher.run(state)
 
 
-def analyst_node(state: AgentState) -> dict:
+async def analyst_node(state: AgentState) -> dict:
     """Generate structured AnalystOutput via ChatGroq (llama-3.3-70b)."""
-    import asyncio
-    return asyncio.get_event_loop().run_until_complete(analyst.run(state))
+    return await analyst.run(state)
 
 
 def critic_node(state: AgentState) -> dict:

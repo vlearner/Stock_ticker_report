@@ -87,4 +87,4 @@ if settings.serve_static_ui and _PUBLIC_DIR.is_dir():
 if __name__ == "__main__":  # pragma: no cover
     import uvicorn
 
-    uvicorn.run("src.api.app:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("src.api.app:app", host="localhost", port=8000, reload=True)

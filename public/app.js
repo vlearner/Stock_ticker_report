@@ -61,9 +61,12 @@ function escapeHtml(s) {
 }
 
 function renderMarkdownLite(text) {
-  const escaped = escapeHtml(text);
+  // Strip residual HTML tags before escaping so they never show as &lt;tag&gt; text.
+  const clean = text.replace(/<[^>]*>/g, "");
+  const escaped = escapeHtml(clean);
   return escaped
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g, "<strong>$1</strong>")
+    .replace(/_(.+?)_/g, "<em>$1</em>")
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\n/g, "<br>");
 }
@@ -75,6 +78,12 @@ function addBubble(kind, text, opts) {
     el.innerHTML = renderMarkdownLite(text);
   } else {
     el.textContent = text;
+  }
+  if (opts && opts.route) {
+    const tag = document.createElement("span");
+    tag.className = "route-tag";
+    tag.textContent = opts.route;
+    el.appendChild(tag);
   }
   chat.appendChild(el);
   chat.scrollTop = chat.scrollHeight;
@@ -108,7 +117,7 @@ async function send(message) {
 
     const data = await res.json();
     typing.remove();
-    addBubble("bot", data.reply || "(empty reply)", { html: true });
+    addBubble("bot", data.reply || "(empty reply)", { html: true, route: data.route });
   } catch (err) {
     typing.remove();
     addBubble("bot", "Network error: " + (err.message || err));
@@ -142,6 +151,19 @@ input.addEventListener("keydown", (e) => {
 input.addEventListener("input", () => {
   input.style.height = "auto";
   input.style.height = Math.min(input.scrollHeight, 120) + "px";
+});
+
+// ---- Chips ----------------------------------------------------------------
+
+document.getElementById("chips").addEventListener("click", (e) => {
+  const chip = e.target.closest(".chip");
+  if (!chip) return;
+  if (remaining() <= 0) return;
+  const query = chip.dataset.query;
+  input.value = "";
+  setCount(getCount() + 1);
+  refreshCounter();
+  send(query);
 });
 
 // ---- Init -----------------------------------------------------------------

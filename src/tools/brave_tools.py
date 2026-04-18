@@ -22,6 +22,7 @@ Public surface
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -125,6 +126,16 @@ def _parse_source(result: dict[str, Any]) -> str | None:
     return None
 
 
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _strip_html(text: str | None) -> str | None:
+    """Remove HTML tags from Brave Search descriptions/titles."""
+    if not text:
+        return text
+    return _HTML_TAG_RE.sub("", text).strip() or None
+
+
 def _parse_results(ticker: str, raw_results: list[dict[str, Any]]) -> NewsBundle:
     """Parse Brave web results into a NewsBundle.
 
@@ -142,11 +153,11 @@ def _parse_results(ticker: str, raw_results: list[dict[str, Any]]) -> NewsBundle
             url = result.get("url", "")
             items.append(
                 NewsItem(
-                    title=title,
+                    title=_strip_html(title) or title,
                     url=url,
                     source=_parse_source(result),
                     published=_parse_published(result),
-                    snippet=result.get("description"),
+                    snippet=_strip_html(result.get("description")),
                 )
             )
         except Exception:  # noqa: BLE001

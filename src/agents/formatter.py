@@ -71,9 +71,9 @@ def _format_minimal(ticker: str, output: AnalystOutput) -> str:
 # Style: rich
 # ---------------------------------------------------------------------------
 
-def _fundamentals_snapshot(f: Fundamentals) -> str:
+def _fundamentals_snapshot(f: Fundamentals, ticker: str) -> str:
     lines = [
-        f"🏢 {f.company_name or ticker}" ,
+        f"🏢 {f.company_name or ticker}",
         f"💹 P/E: `{_fmt_float(f.pe_ratio)}`  EPS: `{_fmt_float(f.eps)}`",
         f"📊 Market cap: `{_fmt_large(f.market_cap)}`  ({f.currency or '?'})",
         f"📅 52w `{_fmt_float(f.week_52_low)}` – `{_fmt_float(f.week_52_high)}`",
@@ -88,7 +88,7 @@ def _format_rich(ticker: str, data: TickerData, output: AnalystOutput) -> str:
     parts: list[str] = [f"*{ticker}*  {_completeness_bar(data.data_completeness_score)}"]
 
     if data.fundamentals:
-        parts.append(_fundamentals_snapshot(data.fundamentals))
+        parts.append(_fundamentals_snapshot(data.fundamentals, ticker))
 
     if data.moving_averages:
         ma = data.moving_averages

@@ -14,10 +14,17 @@
 
   <main class="chat" id="chat" aria-live="polite">
     <div class="bubble bot">
-      Hi! Try <code>AAPL</code>, <code>AAPL vs MSFT</code>, or
-      <code>news TSLA</code>.
+      Hi! Try <code>AAPL</code>, <code>AAPL analysis</code>,
+      <code>AAPL vs MSFT</code>, or <code>TSLA news</code>.
     </div>
   </main>
+
+  <div class="chips" id="chips">
+    <button class="chip" data-query="AAPL">AAPL</button>
+    <button class="chip" data-query="AAPL analysis">AAPL analysis</button>
+    <button class="chip" data-query="AAPL vs MSFT">AAPL vs MSFT</button>
+    <button class="chip" data-query="TSLA news">TSLA news</button>
+  </div>
 
   <form class="composer" id="composer" autocomplete="off">
     <textarea
