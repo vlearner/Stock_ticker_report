@@ -12,6 +12,7 @@ Run locally
 
 Swagger UI:  http://localhost:8000/docs
 ReDoc:       http://localhost:8000/redoc
+Web demo:    http://localhost:8000/  (when ``settings.serve_static_ui`` is on)
 
 Adding future routes
 --------------------
@@ -22,9 +23,14 @@ Adding future routes
 
 from __future__ import annotations
 
-from fastapi import FastAPI
+from pathlib import Path
 
-from src.api.routes import news, ticker
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+
+from src.api.routes import chat, news, ticker
+from src.config import settings
 
 app = FastAPI(
     title="Stock Ticker Report API",
@@ -37,14 +43,41 @@ app = FastAPI(
 )
 
 # ---------------------------------------------------------------------------
+# CORS — permissive by default; restrict via ``cors_allowed_origins`` in prod.
+# ---------------------------------------------------------------------------
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_allowed_origins,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
 
 app.include_router(news.router, prefix="/api/v1", tags=["news"])
 app.include_router(ticker.router, prefix="/api/v1", tags=["ticker"])
+app.include_router(chat.router, prefix="/api/v1", tags=["chat"])
 
 # Future routes follow the same pattern:
 # app.include_router(analyze.router, prefix="/api/v1", tags=["analyze"])
+
+
+# ---------------------------------------------------------------------------
+# Static UI — mounted only for local dev; on Vercel the /public/ folder is
+# served by the CDN, not the Python function.
+# ---------------------------------------------------------------------------
+
+_PUBLIC_DIR = Path(__file__).resolve().parents[2] / "public"
+if settings.serve_static_ui and _PUBLIC_DIR.is_dir():
+    app.mount(
+        "/",
+        StaticFiles(directory=str(_PUBLIC_DIR), html=True),
+        name="public",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -54,4 +87,4 @@ app.include_router(ticker.router, prefix="/api/v1", tags=["ticker"])
 if __name__ == "__main__":  # pragma: no cover
     import uvicorn
 
-    uvicorn.run("src.api.app:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("src.api.app:app", host="localhost", port=8000, reload=True)

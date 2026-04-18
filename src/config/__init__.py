@@ -107,6 +107,27 @@ class Settings(BaseSettings):
         description="Emit a latency warning if total pipeline exceeds this.",
     )
 
+    # --- Web demo UI ------------------------------------------------------
+    cors_allowed_origins: list[str] = Field(
+        default=["*"],
+        description="Origins allowed by CORSMiddleware for the /api/v1 endpoints.",
+    )
+    serve_static_ui: bool = Field(
+        default=True,
+        description=(
+            "Mount ``public/`` as static files for local dev. Disable on "
+            "Vercel — static assets are served by Vercel's CDN there."
+        ),
+    )
+    demo_session_query_limit: int = Field(
+        default=5,
+        ge=1,
+        description=(
+            "Per-browser-session query cap enforced client-side and "
+            "echoed by the /api/v1/chat response for UI sync."
+        ),
+    )
+
 
 settings = Settings()  # type: ignore[call-arg]
 """Full-app singleton. Requires all service keys. Import ``brave_settings``
