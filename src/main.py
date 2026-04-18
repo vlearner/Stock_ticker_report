@@ -1,30 +1,78 @@
-"""Top-level entry point.
+"""Top-level entry point — runs Telegram bot and FastAPI server together.
 
-Reads :mod:`src.config`, selects a :class:`~src.bot.base.MessagingAdapter`
-based on ``settings.messaging_adapter``, wires it to the compiled LangGraph
-pipeline, and runs the event loop. Swap adapters (Telegram, WhatsApp,
-iMessage, ...) here without touching agents or the graph.
+Both services share the same asyncio event loop via ``asyncio.gather``:
 
-Implemented in Implementation Order step 11 (Telegram bot).
+- **Telegram bot** — long-polling, handles stock queries from Telegram users
+- **FastAPI / Uvicorn** — web demo UI + REST API on port 8000
+
+Run with::
+
+    python -m src.main
+
+Graceful shutdown on SIGINT / SIGTERM stops both services cleanly.
 """
 
 from __future__ import annotations
 
+import asyncio
+import logging
+import signal
 
-async def main() -> None:  # pragma: no cover - stub
-    """Application entry point (stub).
+import uvicorn
 
-    Will:
-        1. Load ``settings`` from :mod:`src.config`.
-        2. Build the LangGraph pipeline with a SQLite checkpointer.
-        3. Instantiate the configured messaging adapter.
-        4. Run ``adapter.start()`` and await shutdown.
-    """
+from src.api.app import app
+from src.bot.telegram_handler import TelegramAdapter
+from src.config import settings
 
-    raise NotImplementedError
+logging.basicConfig(
+    format="%(asctime)s  %(levelname)-8s  %(name)s — %(message)s",
+    level=logging.INFO,
+)
+logger = logging.getLogger(__name__)
 
 
-if __name__ == "__main__":  # pragma: no cover
-    import asyncio
+async def main() -> None:
+    loop = asyncio.get_running_loop()
+    stop_event = asyncio.Event()
 
+    def _request_shutdown(*_):
+        logger.info("Shutdown signal received")
+        stop_event.set()
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, _request_shutdown)
+
+    # --- Telegram bot ---
+    adapter = TelegramAdapter()
+
+    # --- Uvicorn (FastAPI) ---
+    uv_config = uvicorn.Config(
+        app=app,
+        host="0.0.0.0",
+        port=8000,
+        log_level="warning",   # keep uvicorn quiet; our logger handles info
+        reload=False,
+    )
+    uv_server = uvicorn.Server(uv_config)
+    # Prevent uvicorn from installing its own signal handlers (we own them)
+    uv_server.install_signal_handlers = lambda: None
+
+    logger.info("Starting Telegram bot + FastAPI server (port 8000)")
+    await adapter.start()
+
+    async def _run_uvicorn():
+        await uv_server.serve()
+
+    async def _wait_for_stop():
+        await stop_event.wait()
+        uv_server.should_exit = True
+
+    await asyncio.gather(_run_uvicorn(), _wait_for_stop())
+
+    logger.info("Shutting down Telegram bot")
+    await adapter.stop()
+    logger.info("Bye")
+
+
+if __name__ == "__main__":
     asyncio.run(main())

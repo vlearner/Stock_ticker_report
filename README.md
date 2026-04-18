@@ -153,6 +153,18 @@ BRAVE_API_KEY=your_brave_api_key
 python -m src.main
 ```
 
+The bot uses long-polling — no webhook or public URL required.
+
+**What to expect:**
+- Send `AAPL` → minimal summary
+- Send `AAPL analysis` → rich report with fundamentals + SMAs
+- Send `AAPL vs MSFT` → side-by-side comparison
+- Send `TSLA news` → latest headlines
+- Send `/start` or `/help` → usage guide
+
+**Rate limiting:** 10 queries per hour per user, tracked in SQLite (`SQLITE_DB_PATH`).  
+**Message splitting:** replies longer than 4096 chars are sent as multiple messages.
+
 ---
 
 ## Project Structure
@@ -170,14 +182,19 @@ src/
 │   ├── brave_tools.py   # fetch_ticker_news() + LangChain @tool wrapper
 │   └── yfinance_tools.py
 ├── agents/
-│   ├── orchestrator.py  # heuristic routing → route + format_style
+│   ├── orchestrator.py  # LLM classification (llama-3.1-8b) + heuristic fallback
 │   ├── data_fetcher.py  # 3 concurrent yfinance calls, completeness score
 │   ├── news_fetcher.py  # Brave Search with smart API gating
 │   ├── analyst.py       # ChatGroq structured output, parallel per ticker
 │   └── formatter.py     # minimal / rich / news Telegram styles
+├── bot/
+│   ├── base.py          # MessagingAdapter ABC
+│   ├── rate_limiter.py  # SQLite rolling-window rate limiter (10/hour)
+│   └── telegram_handler.py  # TelegramAdapter — polling, typing indicator, message splitting
 ├── graph/               # Pipeline definition (nodes + routing)
+├── prompts/             # orchestrator_system.txt, analyst_instructions.txt
 ├── schemas/             # Pydantic data contracts
-└── main.py              # Telegram bot entry point
+└── main.py              # Entry point — starts TelegramAdapter with graceful shutdown
 ```
 
 ---
