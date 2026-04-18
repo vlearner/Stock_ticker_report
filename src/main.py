@@ -1,30 +1,51 @@
-"""Top-level entry point.
+"""Top-level entry point — wires config, pipeline, and Telegram adapter.
 
-Reads :mod:`src.config`, selects a :class:`~src.bot.base.MessagingAdapter`
-based on ``settings.messaging_adapter``, wires it to the compiled LangGraph
-pipeline, and runs the event loop. Swap adapters (Telegram, WhatsApp,
-iMessage, ...) here without touching agents or the graph.
+Run with::
 
-Implemented in Implementation Order step 11 (Telegram bot).
+    python -m src.main
+
+The bot uses long-polling (no webhook setup required for local/demo use).
+Graceful shutdown on SIGINT / SIGTERM via asyncio signal handling.
 """
 
 from __future__ import annotations
 
+import asyncio
+import logging
+import signal
 
-async def main() -> None:  # pragma: no cover - stub
-    """Application entry point (stub).
+from src.bot.telegram_handler import TelegramAdapter
 
-    Will:
-        1. Load ``settings`` from :mod:`src.config`.
-        2. Build the LangGraph pipeline with a SQLite checkpointer.
-        3. Instantiate the configured messaging adapter.
-        4. Run ``adapter.start()`` and await shutdown.
-    """
-
-    raise NotImplementedError
+logging.basicConfig(
+    format="%(asctime)s  %(levelname)-8s  %(name)s — %(message)s",
+    level=logging.INFO,
+)
+logger = logging.getLogger(__name__)
 
 
-if __name__ == "__main__":  # pragma: no cover
-    import asyncio
+async def main() -> None:
+    adapter = TelegramAdapter()
+    loop = asyncio.get_running_loop()
 
+    stop_event = asyncio.Event()
+
+    def _request_shutdown(*_):
+        logger.info("Shutdown signal received")
+        stop_event.set()
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, _request_shutdown)
+
+    logger.info("Starting Stock Ticker Bot")
+    await adapter.start()
+    logger.info("Bot is running — press Ctrl+C to stop")
+
+    await stop_event.wait()
+
+    logger.info("Shutting down")
+    await adapter.stop()
+    logger.info("Bye")
+
+
+if __name__ == "__main__":
     asyncio.run(main())
