@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import textwrap
+from pathlib import Path
 from typing import Any
 
 from langchain_groq import ChatGroq
@@ -27,6 +28,9 @@ from src.schemas.agent_state import AgentState
 from src.schemas.ticker_data import AnalystOutput, Fundamentals, MovingAverages, NewsBundle, TickerData, VolumeData
 
 logger = logging.getLogger(__name__)
+
+_PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
+_ANALYST_INSTRUCTIONS: str = (_PROMPTS_DIR / "analyst_instructions.txt").read_text(encoding="utf-8")
 
 # ---------------------------------------------------------------------------
 # LLM client — constructed once per process (thread-safe, connection-pooled)
@@ -121,17 +125,7 @@ def _build_prompt(ticker: str, data: TickerData, iteration: int) -> str:
     if data.warnings:
         sections.append(f"## Data Warnings\n" + "\n".join(f"- {w}" for w in data.warnings))
 
-    instructions = textwrap.dedent(f"""
-        ## Instructions
-        - Write a concise, factual summary (max 400 characters) suitable for a Telegram message.
-        - Do NOT give investment advice or buy/sell recommendations.
-        - Do NOT speculate beyond the data provided.
-        - List 2–4 key points as short bullet phrases (no full sentences needed).
-        - This is iteration {iteration} of the analysis.
-        - Use plain language — no jargon unless it's in the data.
-    """).strip()
-
-    sections.append(instructions)
+    sections.append(_ANALYST_INSTRUCTIONS.format(iteration=iteration).strip())
     return "\n\n".join(sections)
 
 
