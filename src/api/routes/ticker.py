@@ -8,6 +8,7 @@ Endpoints
 ``GET /api/v1/ticker/moving-averages?ticker=AAPL``
 ``GET /api/v1/ticker/volume?ticker=AAPL``
 ``GET /api/v1/ticker/validate?ticker=AAPL``
+``GET /api/v1/ticker/search?q=Apple``
 
 Responses
 ---------
@@ -26,6 +27,7 @@ from src.schemas.ticker_data import (
     TickerValidationResult,
     VolumeData,
 )
+from src.tools.ticker_search import search_ticker_async
 from src.tools.yfinance_tools import (
     YFinanceFetchError,
     fetch_fundamentals,
@@ -112,3 +114,27 @@ async def validate_ticker_route(
     ticker: str = _TICKER_QUERY,
 ) -> TickerValidationResult:
     return await fetch_ticker_validation(ticker)
+
+
+@router.get(
+    "/ticker/search",
+    summary="Look up a ticker symbol by company name",
+    description=(
+        "Searches Yahoo Finance for a matching ticker symbol given a company "
+        "name or partial name (e.g. ``Apple`` → ``AAPL``). Returns the best "
+        "match on a major exchange (NASDAQ / NYSE) when available."
+    ),
+)
+async def search_ticker_route(
+    q: str = Query(
+        ...,
+        description="Company name or partial name to search for.",
+        examples=["Apple", "Tesla", "Nvidia"],
+        min_length=1,
+        max_length=100,
+    ),
+) -> dict:
+    symbol = await search_ticker_async(q)
+    if symbol is None:
+        raise HTTPException(status_code=404, detail=f"No ticker found for '{q}'")
+    return {"query": q, "symbol": symbol}

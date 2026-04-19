@@ -419,3 +419,50 @@ class TestValidateRoute:
             )
 
         assert resp.status_code == 422
+
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/ticker/search
+# ---------------------------------------------------------------------------
+
+
+class TestTickerSearch:
+    async def test_search_returns_symbol(self) -> None:
+        with patch(
+            "src.api.routes.ticker.search_ticker_async",
+            AsyncMock(return_value="AAPL"),
+        ):
+            async with await _client() as client:
+                resp = await client.get("/api/v1/ticker/search", params={"q": "Apple"})
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["symbol"] == "AAPL"
+        assert body["query"] == "Apple"
+
+    async def test_search_returns_404_when_not_found(self) -> None:
+        with patch(
+            "src.api.routes.ticker.search_ticker_async",
+            AsyncMock(return_value=None),
+        ):
+            async with await _client() as client:
+                resp = await client.get(
+                    "/api/v1/ticker/search", params={"q": "ghostcorp"}
+                )
+
+        assert resp.status_code == 404
+
+    async def test_search_missing_q_returns_422(self) -> None:
+        async with await _client() as client:
+            resp = await client.get("/api/v1/ticker/search")
+
+        assert resp.status_code == 422
+
+    async def test_search_q_too_long_returns_422(self) -> None:
+        async with await _client() as client:
+            resp = await client.get(
+                "/api/v1/ticker/search", params={"q": "A" * 101}
+            )
+
+        assert resp.status_code == 422
