@@ -1,13 +1,15 @@
 {
   "version": 2,
   "builds": [
-    { "src": "api/routes/app.py", "use": "@vercel/python" },
+    { "src": "main.py", "use": "@vercel/python" },
     { "src": "public/**", "use": "@vercel/static" }
   ],
   "routes": [
-    { "src": "/api/(.*)", "dest": "/api/index.py" },
-    { "src": "/", "dest": "/public/index.html" },
-    { "src": "/(.*)", "dest": "/public/$1" }
+    { "src": "/api/chat", "dest": "routes/chat.py" },
+    { "src": "/api/news", "dest": "routes/news.py" },
+    { "src": "/api/ticker", "dest": "routes/ticker.py" },
+    { "src": "/", "dest": "public/index.html" },
+    { "src": "/(.*)", "dest": "public/$1" }
   ],
   "env": {
     "SERVE_STATIC_UI": "false"
