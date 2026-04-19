@@ -57,7 +57,8 @@ cover/
 .env
 .idea
 .venv
-
+.vercel
+.*
 # Translations
 *.mo
 *.pot
