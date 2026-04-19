@@ -22,12 +22,9 @@ import uvicorn
 
 from src.api.app import app
 from src.bot.telegram_handler import TelegramAdapter
-from src.config import settings
+from src.logging_config import configure_logging
 
-logging.basicConfig(
-    format="%(asctime)s  %(levelname)-8s  %(name)s — %(message)s",
-    level=logging.INFO,
-)
+configure_logging()
 logger = logging.getLogger(__name__)
 
 

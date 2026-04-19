@@ -223,7 +223,10 @@ async def run(state: AgentState) -> dict:
         and ``start_time``.
     """
     message: str = state.get("user_message", "")
+    run_id: str = state.get("run_id", "")
     start_time = time.monotonic()
+
+    logger.info("Orchestrator: run_id=%s message_len=%d", run_id, len(message))
 
     try:
         result: OrchestratorOutput = await _structured_llm.ainvoke(

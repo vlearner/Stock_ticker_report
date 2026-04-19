@@ -13,9 +13,10 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict, Field
 
+from src.api.middleware import require_api_key, sanitize_message
 from src.config import settings
 from src.graph.pipeline import compile_graph
 
@@ -61,11 +62,15 @@ class ChatResponse(BaseModel):
         "Runs orchestrator → data_fetcher → news_fetcher → analyst → "
         "critic → formatter and returns the formatted reply."
     ),
+    dependencies=[Depends(require_api_key)],
 )
 async def chat(request: ChatRequest) -> ChatResponse:
-    logger.info("Chat: sid=%s  message=%r", request.session_id, request.message)
+    # Sanitize before invoking the pipeline
+    clean_message = sanitize_message(request.message)
 
-    state = await _pipeline.ainvoke({"user_message": request.message})
+    logger.info("Chat: sid=%s  message=%r", request.session_id, clean_message)
+
+    state = await _pipeline.ainvoke({"user_message": clean_message})
 
     reply: str = state.get("final_message") or "Sorry, something went wrong."
     route: str = state.get("route") or "unknown"

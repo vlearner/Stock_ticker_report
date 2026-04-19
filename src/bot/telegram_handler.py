@@ -26,6 +26,7 @@ from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
+from src.api.middleware import sanitize_message
 from src.bot.base import MessagingAdapter
 from src.bot.rate_limiter import RateLimiter
 from src.config import settings
@@ -166,7 +167,7 @@ class TelegramAdapter(MessagingAdapter):
 
         user_id = str(message.from_user.id)
         chat_id = str(message.chat_id)
-        text = message.text.strip()
+        text = sanitize_message(message.text)
 
         # 1. Rate limit check
         allowed, remaining = await self._rate_limiter.check_and_record(user_id)

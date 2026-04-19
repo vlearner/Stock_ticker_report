@@ -175,6 +175,9 @@ async def run(state: AgentState) -> dict:
     data_by_ticker: dict[str, TickerData] = state.get("data_by_ticker", {})
     iteration_count: dict[str, int] = state.get("iteration_count", {})
     existing_errors: list[str] = list(state.get("errors", []))
+    run_id: str = state.get("run_id", "")
+
+    logger.info("Analyst: run_id=%s tickers=%s", run_id, list(data_by_ticker.keys()))
 
     if not data_by_ticker:
         logger.warning("Analyst: no data_by_ticker in state — skipping LLM calls")

@@ -61,7 +61,10 @@ async def run(state: AgentState) -> dict:
     route: str = state.get("route", "single")
     message: str = state.get("user_message", "")
     tickers: list[str] = state.get("tickers", [])
+    run_id: str = state.get("run_id", "")
     data_by_ticker: dict[str, TickerData] = dict(state.get("data_by_ticker", {}))
+
+    logger.info("NewsFetcher: run_id=%s route=%s tickers=%s", run_id, route, tickers)
 
     if not _should_fetch_news(route, message):
         logger.info("NewsFetcher: skipping Brave — route=%s, no news keywords", route)
