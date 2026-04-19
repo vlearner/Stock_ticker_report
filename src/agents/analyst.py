@@ -23,6 +23,7 @@ from typing import Any
 
 from langchain_groq import ChatGroq
 
+from src.cache import analyst_cache
 from src.config import settings
 from src.schemas.agent_state import AgentState
 from src.schemas.ticker_data import AnalystOutput, Fundamentals, MovingAverages, NewsBundle, TickerData, VolumeData
@@ -137,21 +138,56 @@ async def _analyse_one(
     ticker: str,
     data: TickerData,
     iteration: int,
-) -> tuple[str, AnalystOutput | Exception]:
-    """Run one structured LLM call for ``ticker``.
+) -> tuple[str, AnalystOutput | Exception, bool]:
+    """Run one structured LLM call for ``ticker`` (with answer caching).
 
-    Returns a ``(ticker, result)`` tuple where ``result`` is either a valid
-    ``AnalystOutput`` or the exception that was raised.
+    Cache behaviour
+    ---------------
+    * Only iteration 1 is served from cache — post-critic revisions (iter ≥ 2)
+      always re-run so they can act on critic feedback.
+    * Cache key is ``ticker:YYYY-MM-DD`` (UTC) — daily rollover.
+    * Cache writes only happen after a successful LLM call.
+
+    Returns:
+        ``(ticker, result, cache_hit)`` where ``result`` is either a valid
+        ``AnalystOutput`` or the exception that was raised, and ``cache_hit``
+        reports whether the response came from cache.
     """
+    cache_enabled = settings.analyst_cache_enabled and iteration == 1
+    cache_key = analyst_cache.make_key(ticker) if cache_enabled else ""
+
+    # --- Cache read ---
+    if cache_enabled:
+        try:
+            cached = await analyst_cache.get(cache_key)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("AnalystCache.get failed for %s: %s", ticker, exc)
+            cached = None
+
+        if cached is not None:
+            # Preserve cached summary but enforce current iteration counter
+            hit = cached.model_copy(update={"iteration": iteration})
+            logger.info("Analyst cache HIT  ticker=%s key=%s", ticker, cache_key)
+            return ticker, hit, True
+
+    # --- LLM call (cache miss or caching disabled) ---
     prompt = _build_prompt(ticker, data, iteration)
     try:
         output: Any = await _structured_llm.ainvoke(prompt)
-        # Enforce iteration counter from pipeline state
         output = output.model_copy(update={"iteration": iteration})
-        return ticker, output
     except Exception as exc:  # noqa: BLE001
         logger.error("Analyst LLM call failed for %s: %s", ticker, exc)
-        return ticker, exc
+        return ticker, exc, False
+
+    # --- Cache write ---
+    if cache_enabled:
+        try:
+            await analyst_cache.set(cache_key, output)
+            logger.info("Analyst cache SET  ticker=%s key=%s", ticker, cache_key)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("AnalystCache.set failed for %s: %s", ticker, exc)
+
+    return ticker, output, False
 
 
 # ---------------------------------------------------------------------------
@@ -196,8 +232,9 @@ async def run(state: AgentState) -> dict:
 
     analyst_outputs: dict[str, AnalystOutput] = {}
     new_errors: list[str] = []
+    cache_hits: list[str] = []
 
-    for ticker, result in results:
+    for ticker, result, cache_hit in results:
         if isinstance(result, Exception):
             new_errors.append(f"analyst:{ticker}:{result}")
             analyst_outputs[ticker] = AnalystOutput(
@@ -207,12 +244,18 @@ async def run(state: AgentState) -> dict:
             )
         else:
             analyst_outputs[ticker] = result
+            if cache_hit:
+                cache_hits.append(ticker)
             logger.info(
-                "Analyst: %s  iteration=%d  summary_len=%d",
+                "Analyst: %s  iteration=%d  summary_len=%d  cached=%s",
                 ticker,
                 result.iteration,
                 len(result.summary),
+                cache_hit,
             )
+
+    if cache_hits:
+        logger.info("Analyst: %d/%d cache hits (%s)", len(cache_hits), len(results), cache_hits)
 
     return {
         "analyst_outputs": analyst_outputs,

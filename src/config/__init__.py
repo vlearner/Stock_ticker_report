@@ -107,6 +107,23 @@ class Settings(BaseSettings):
         description="Emit a latency warning if total pipeline exceeds this.",
     )
 
+    # --- Answer caching ---------------------------------------------------
+    analyst_cache_enabled: bool = Field(
+        default=True,
+        description=(
+            "Cache AnalystOutput by ticker + UTC date in SQLite to skip "
+            "repeat ChatGroq calls within a single market day."
+        ),
+    )
+    analyst_cache_ttl_hours: int = Field(
+        default=24,
+        ge=1,
+        description=(
+            "Max age of a cached AnalystOutput, in hours. Acts as a backstop "
+            "in addition to the date-based cache key."
+        ),
+    )
+
     # --- Web demo UI ------------------------------------------------------
     cors_allowed_origins: list[str] = Field(
         default=["*"],
