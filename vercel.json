@@ -3,10 +3,7 @@
   "builds": [
     {
       "src": "api/index.py",
-      "use": "@vercel/python",
-      "config": {
-        "includeFiles": ["src/**"]
-      }
+      "use": "@vercel/python"
     },
     {
       "src": "public/**",
@@ -20,15 +17,20 @@
     },
     {
       "source": "/",
-      "destination": "public/index.html"
+      "destination": "/public/index.html"
     },
     {
       "source": "/(.*)",
-      "destination": "public/$1"
+      "destination": "/public/$1"
     }
   ],
   "env": {
     "SERVE_STATIC_UI": "false",
     "PYTHONPATH": "."
+  },
+  "build": {
+    "env": {
+      "PYTHONPATH": "."
+    }
   }
 }
