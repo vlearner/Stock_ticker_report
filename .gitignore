@@ -28,6 +28,8 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+.vercel
+.*
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -57,7 +59,8 @@ cover/
 .env
 .idea
 .venv
-
+.vercel
+.*
 # Translations
 *.mo
 *.pot
