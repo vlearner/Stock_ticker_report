@@ -33,6 +33,7 @@ from pydantic import BaseModel, Field
 
 from src.config import settings
 from src.schemas.agent_state import AgentState
+from src.tools.ticker_search import search_ticker_async
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +146,69 @@ def _heuristic_fallback(message: str) -> OrchestratorOutput:
 
 
 # ---------------------------------------------------------------------------
+# Company name → ticker resolver
+# ---------------------------------------------------------------------------
+
+# Tokens that are already valid-looking ticker symbols (1–5 uppercase chars,
+# no digits/specials — excludes things like "APPLE" which the heuristic
+# uppercases from the user's typed "apple").
+_TICKER_RE = __import__("re").compile(r"^[A-Z]{1,5}$")
+
+
+async def _resolve_company_names(
+    tickers: list[str],
+    original_message: str,
+) -> list[str]:
+    """Resolve company-name tokens to real ticker symbols where needed.
+
+    Tokens that the user typed in ALL-CAPS (e.g. "AAPL") are assumed to be
+    intentional ticker symbols and are kept as-is.  Any other token (e.g.
+    "Apple" uppercased to "APPLE" by the heuristic) is looked up via Yahoo
+    Finance Search.  If the search fails, the original token is kept so the
+    pipeline degrades gracefully.
+
+    Args:
+        tickers:          Uppercase ticker candidates from LLM or heuristic.
+        original_message: Raw user message — used to detect which words were
+                          typed in all-caps.
+
+    Returns:
+        Resolved list of ticker symbols (may be shorter if lookups fail).
+    """
+    # Collect which words the user actually typed in uppercase
+    user_uppercase: set[str] = {
+        w.upper()
+        for w in original_message.strip().split()
+        if w.isupper() and len(w) <= 5
+    }
+
+    resolved: list[str] = []
+    for ticker in tickers:
+        if ticker in user_uppercase:
+            # User explicitly typed this in uppercase — treat it as a symbol
+            resolved.append(ticker)
+            continue
+
+        # Token looks like a genuine symbol pattern AND is short — keep it
+        # (handles MSFT, GOOGL, etc. returned by the LLM)
+        if _TICKER_RE.match(ticker) and len(ticker) <= 4:
+            resolved.append(ticker)
+            continue
+
+        # Looks like a company name (e.g. "APPLE", "TESLA") — resolve it
+        found = await search_ticker_async(ticker)
+        if found:
+            logger.info("Resolved company name %r → %s", ticker, found)
+            resolved.append(found)
+        else:
+            # Search failed — keep original so the pipeline can still try
+            logger.warning("Could not resolve company name %r to a ticker", ticker)
+            resolved.append(ticker)
+
+    return resolved
+
+
+# ---------------------------------------------------------------------------
 # Node entry point
 # ---------------------------------------------------------------------------
 
@@ -176,9 +240,18 @@ async def run(state: AgentState) -> dict:
         logger.warning("Orchestrator LLM failed, using heuristic fallback: %s", exc)
         result = _heuristic_fallback(message)
 
+    raw_tickers = [t.upper() for t in result.tickers]
+
+    # Resolve company-name tokens (e.g. "Apple" → "AAPL") when needed.
+    # Skipped for invalid/rate_limited routes since there are no tickers.
+    if result.route not in ("invalid", "rate_limited") and raw_tickers:
+        resolved_tickers = await _resolve_company_names(raw_tickers, message)
+    else:
+        resolved_tickers = raw_tickers
+
     return {
         "route": result.route,
-        "tickers": [t.upper() for t in result.tickers],
+        "tickers": resolved_tickers,
         "format_style": result.format_style,
         "start_time": start_time,
     }
