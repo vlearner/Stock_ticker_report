@@ -15,12 +15,12 @@ readme = "README.md"
 # Keep in sync with requirements.txt.  Vercel uses api/requirements.txt
 # for the serverless bundle; this list tracks the full dev/runtime set.
 dependencies = [
-    "langgraph~=1.0.10",
-    "langgraph-checkpoint-sqlite~=3.0.1",
-    "langchain~=0.3",
-    "langchain-core~=0.3",
-    "langchain-groq~=0.2",
-    "langsmith>=0.1.17,<0.4",
+    "langgraph>=1.0.10",
+    "langgraph-checkpoint-sqlite>=3.0.1",
+    "langchain>=1.0.0",
+    "langchain-core>=1.0.0",
+    "langchain-groq>=1.0.0",
+    "langsmith>=0.3.0",
     "pydantic~=2.9",
     "pydantic-settings~=2.5",
     "yfinance~=0.2",
