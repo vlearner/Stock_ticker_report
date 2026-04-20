@@ -61,6 +61,7 @@ cover/
 .venv
 .vercel
 .*
+!.vercelignore
 # Translations
 *.mo
 *.pot

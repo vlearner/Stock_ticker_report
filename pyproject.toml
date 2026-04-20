@@ -1,10 +1,3 @@
-# Minimal PEP-621 project file — exists primarily for deployment tooling
-# (Vercel's Python builder uses `uv lock`, which needs a pyproject.toml).
-#
-# Day-to-day development still uses `requirements.txt`; this file only
-# mirrors the pinned versions so that `uv lock` can resolve a consistent
-# environment on Vercel.
-
 [project]
 name = "stock-ticker-report"
 version = "0.1.0"
@@ -12,29 +5,32 @@ description = "LangGraph-based conversational stock analysis agent."
 requires-python = ">=3.12,<3.13"
 readme = "README.md"
 
-# Keep in sync with requirements.txt.  Vercel uses api/requirements.txt
-# for the serverless bundle; this list tracks the full dev/runtime set.
+# Vercel installs these (uv now prioritises pyproject.toml over requirements.txt).
+# Keep in sync with api/requirements.txt — only what the serverless bundle needs.
 dependencies = [
+    "fastapi~=0.115",
+    "pydantic~=2.9",
+    "yfinance~=0.2",
+    "pandas~=2.2",
+    "python-dotenv~=1.0",
+]
+
+[project.optional-dependencies]
+# Local development — install with: pip install -e .[dev]
+dev = [
+    "pydantic-settings~=2.5",
+    "httpx~=0.27",
+    "uvicorn[standard]~=0.30",
+    "python-json-logger~=3.2",
     "langgraph>=1.0.10",
     "langgraph-checkpoint-sqlite>=3.0.1",
     "langchain>=1.0.0",
     "langchain-core>=1.0.0",
     "langchain-groq>=1.0.0",
     "langsmith>=0.3.0",
-    "pydantic~=2.9",
-    "pydantic-settings~=2.5",
-    "yfinance~=0.2",
-    "pandas~=2.2",
-    "httpx~=0.27",
     "python-telegram-bot~=21.6",
     "aiosqlite~=0.20",
-    "python-dotenv~=1.0",
-    "fastapi~=0.115",
-    "uvicorn[standard]~=0.30",
-    "python-json-logger~=3.2",
 ]
-
-[project.optional-dependencies]
 test = [
     "pytest~=9.0.3",
     "pytest-asyncio>=0.24,<2.0",
