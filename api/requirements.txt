@@ -1,18 +1,5 @@
-# Slimmed dependency set for the Vercel serverless bundle.
-# Excludes langgraph / langchain / telegram / aiosqlite / langsmith —
-# the demo chat endpoint routes through src/tools/ only, not the
-# full LangGraph pipeline.
-
 fastapi~=0.115
 pydantic~=2.9
-pydantic-settings~=2.5
-httpx~=0.27
 yfinance~=0.2
 pandas~=2.2
 python-dotenv~=1.0
-# yfinance_tools.py and brave_tools.py decorate their tool functions with
-# @langchain_core.tools.tool — the decorator is imported unconditionally,
-# so langchain-core must be in the serverless bundle even though the demo
-# endpoint never invokes the LangChain-wrapped variants.
-langchain-core~=0.3
-
