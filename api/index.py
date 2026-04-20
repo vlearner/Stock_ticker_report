@@ -14,12 +14,16 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+from pathlib import Path
 from typing import Optional
 
 import yfinance as yf
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
+
+_PUBLIC = Path(__file__).parent.parent / "public"
 
 app = FastAPI(
     title="Stock Ticker Demo API",
@@ -119,7 +123,25 @@ def _build_reply(symbol: str) -> str:
     return "\n".join(lines)
 
 
-# ── Endpoint ─────────────────────────────────────────────────────────────────
+# ── Static UI ────────────────────────────────────────────────────────────────
+
+
+@app.get("/")
+async def root() -> Response:
+    return Response((_PUBLIC / "index.html").read_bytes(), media_type="text/html")
+
+
+@app.get("/app.js")
+async def app_js() -> Response:
+    return Response((_PUBLIC / "app.js").read_bytes(), media_type="application/javascript")
+
+
+@app.get("/styles.css")
+async def styles_css() -> Response:
+    return Response((_PUBLIC / "styles.css").read_bytes(), media_type="text/css")
+
+
+# ── Chat endpoint ─────────────────────────────────────────────────────────────
 
 
 @app.post("/api/v1/chat", response_model=ChatResponse)
