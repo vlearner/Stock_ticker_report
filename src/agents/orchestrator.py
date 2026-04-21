@@ -46,7 +46,7 @@ _PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
 class OrchestratorOutput(BaseModel):
     """Structured classification returned by the LLM."""
 
-    route: Literal["single", "comparison", "news_only", "invalid"] = Field(
+    route: Literal["single", "comparison", "news_only", "chart", "invalid"] = Field(
         description=(
             "single      — one ticker, general query\n"
             "comparison  — two tickers being compared\n"
@@ -96,6 +96,9 @@ _NEWS_KEYWORDS: frozenset[str] = frozenset(
 _DETAIL_KEYWORDS: frozenset[str] = frozenset(
     {"analysis", "analyse", "analyze", "report", "detail", "full", "deep", "overview"}
 )
+_CHART_KEYWORDS: frozenset[str] = frozenset(
+    {"chart", "graph", "plot", "visualize", "visualise"}
+)
 _STOPWORDS: frozenset[str] = frozenset(
     {
         "vs", "and", "or", "the", "for", "in", "on", "at", "a", "an",
@@ -105,9 +108,11 @@ _STOPWORDS: frozenset[str] = frozenset(
         "has", "had", "not", "no", "so", "if", "by", "as", "from",
         "with", "this", "that", "they", "have", "about", "stock",
         "price", "share", "shares", "today", "now", "check",
+        "moving", "average", "ma",
     }
     | _NEWS_KEYWORDS
     | _DETAIL_KEYWORDS
+    | _CHART_KEYWORDS
 )
 
 
@@ -132,11 +137,14 @@ def _heuristic_fallback(message: str) -> OrchestratorOutput:
     is_comparison = "vs" in lowered or "compare" in lowered
     is_news_only = any(kw in lowered for kw in _NEWS_KEYWORDS) and not is_comparison
     has_detail = any(kw in lowered for kw in _DETAIL_KEYWORDS)
+    has_chart = any(kw in lowered for kw in _CHART_KEYWORDS)
 
     if is_comparison:
         return OrchestratorOutput(route="comparison", tickers=tickers[:2], format_style="rich")
     if is_news_only:
         return OrchestratorOutput(route="news_only", tickers=tickers[:1], format_style="news")
+    if has_chart:
+        return OrchestratorOutput(route="chart", tickers=tickers[:1], format_style="minimal")
 
     return OrchestratorOutput(
         route="single",

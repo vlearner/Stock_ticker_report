@@ -92,6 +92,26 @@ async def formatter_node(state: AgentState) -> dict:
     return formatter.run(state)
 
 
+@timed_node("chart")
+async def chart_node(state: AgentState) -> dict:
+    """Fetch MA time-series data and render a Unicode text chart."""
+    from src.tools.chart_renderer import render_ma_chart
+    from src.tools.yfinance_tools import fetch_ma_chart_data
+
+    tickers = state.get("tickers", [])
+    if not tickers:
+        return {"final_message": "No ticker found. Try 'AAPL chart'."}
+
+    chart_data = await fetch_ma_chart_data(tickers[0], days=60)
+    if not chart_data.prices:
+        return {"final_message": f"Could not fetch price history for {tickers[0]}."}
+
+    return {
+        "chart_data": chart_data,
+        "final_message": render_ma_chart(chart_data),
+    }
+
+
 @timed_node("error_handler")
 async def error_handler_node(state: AgentState) -> dict:
     """Return a user-friendly message for invalid or rate-limited routes."""
@@ -121,6 +141,8 @@ def route_after_orchestrator(state: AgentState) -> str:
         return "error"
     if route == "news_only":
         return "news_only"
+    if route == "chart":
+        return "chart"
     # "single" and "comparison" both go through the full pipeline
     return "full_pipeline"
 
@@ -161,6 +183,7 @@ def build_graph() -> StateGraph:
     graph.add_node("analyst", analyst_node)
     graph.add_node("critic", critic_node)
     graph.add_node("formatter", formatter_node)
+    graph.add_node("chart", chart_node)
     graph.add_node("error_handler", error_handler_node)
 
     # Entry point: inject correlation_id, then classify
@@ -174,6 +197,7 @@ def build_graph() -> StateGraph:
         {
             "full_pipeline": "data_fetcher",
             "news_only": "news_fetcher",
+            "chart": "chart",
             "error": "error_handler",
         },
     )
@@ -195,6 +219,7 @@ def build_graph() -> StateGraph:
 
     # Terminal edges
     graph.add_edge("formatter", END)
+    graph.add_edge("chart", END)
     graph.add_edge("error_handler", END)
 
     return graph

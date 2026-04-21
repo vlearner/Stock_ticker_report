@@ -18,6 +18,7 @@ from src.schemas.ticker_data import (
     AnalystOutput,
     CritiqueResult,
     GoalMetrics,
+    MAChartData,
     TickerData,
 )
 
@@ -25,6 +26,7 @@ Route = Literal[
     "single",
     "comparison",
     "news_only",
+    "chart",
     "invalid",
     "rate_limited",
 ]
@@ -93,6 +95,7 @@ class AgentState(TypedDict, total=False):
     format_style: FormatStyle
 
     # --- Pipeline results -------------------------------------------------
+    chart_data: MAChartData | None
     data_by_ticker: dict[str, TickerData]
     analyst_outputs: dict[str, AnalystOutput]
     critique_by_ticker: dict[str, CritiqueResult]

@@ -41,6 +41,7 @@ from pydantic import BaseModel, Field
 from src.config.yfinance_settings import yfinance_settings
 from src.schemas.ticker_data import (
     Fundamentals,
+    MAChartData,
     MovingAverages,
     TickerValidationResult,
     VolumeData,
@@ -314,6 +315,43 @@ async def fetch_moving_averages(ticker: str) -> MovingAverages:
         sma_100=_sma_or_none(closes, 100),
         sma_200=_sma_or_none(closes, 200),
         as_of=datetime.now(timezone.utc),
+    )
+
+
+async def fetch_ma_chart_data(ticker: str, days: int = 60) -> MAChartData:
+    """Fetch price history + SMA time series for chart rendering.
+
+    Always fetches a full year so there is enough history to compute SMA200,
+    then trims to the last ``days`` data points for the chart.
+
+    Args:
+        ticker: Stock symbol (case-insensitive).
+        days:   Number of trailing calendar days to show in the chart.
+
+    Returns:
+        :class:`MAChartData` with parallel lists of dates, prices, sma50,
+        sma200.  Lists are empty if history cannot be fetched.
+    """
+    symbol = ticker.upper()
+    history = await _fetch_history(symbol, period="1y")
+
+    if history is None or history.empty or "Close" not in history.columns:
+        return MAChartData(ticker=symbol)
+
+    closes = history["Close"].dropna()
+    sma50_series  = closes.rolling(window=50).mean()
+    sma200_series = closes.rolling(window=200).mean()
+
+    closes_tail = closes.tail(days)
+    sma50_tail   = sma50_series.tail(days)
+    sma200_tail  = sma200_series.tail(days)
+
+    return MAChartData(
+        ticker=symbol,
+        dates=[d.strftime("%b %d") for d in closes_tail.index],
+        prices=closes_tail.tolist(),
+        sma50=[None if pd.isna(v) else float(v) for v in sma50_tail],
+        sma200=[None if pd.isna(v) else float(v) for v in sma200_tail],
     )
 
 

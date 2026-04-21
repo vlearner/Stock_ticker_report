@@ -78,6 +78,22 @@ class MovingAverages(_StrictBase):
         return v.upper()
 
 
+class MAChartData(_StrictBase):
+    """Time-series data for rendering a moving average chart."""
+
+    ticker: str
+    dates: list[str] = Field(default_factory=list)
+    prices: list[float] = Field(default_factory=list)
+    sma50: list[float | None] = Field(default_factory=list)
+    sma200: list[float | None] = Field(default_factory=list)
+    as_of: datetime = Field(default_factory=_utcnow)
+
+    @field_validator("ticker")
+    @classmethod
+    def _upper_ticker(cls, v: str) -> str:
+        return v.upper()
+
+
 class VolumeData(_StrictBase):
     """Current and average trading volume."""
 
