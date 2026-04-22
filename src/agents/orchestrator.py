@@ -135,9 +135,14 @@ def _heuristic_fallback(message: str) -> OrchestratorOutput:
         return OrchestratorOutput(route="invalid", tickers=[], format_style="minimal")
 
     is_comparison = "vs" in lowered or "compare" in lowered
-    is_news_only = any(kw in lowered for kw in _NEWS_KEYWORDS) and not is_comparison
     has_detail = any(kw in lowered for kw in _DETAIL_KEYWORDS)
     has_chart = any(kw in lowered for kw in _CHART_KEYWORDS)
+    # news_only only when user asks for news without also requesting analysis/detail
+    is_news_only = (
+        any(kw in lowered for kw in _NEWS_KEYWORDS)
+        and not is_comparison
+        and not has_detail
+    )
 
     if is_comparison:
         return OrchestratorOutput(route="comparison", tickers=tickers[:2], format_style="rich")

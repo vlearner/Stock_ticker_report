@@ -7,9 +7,10 @@ Given a user message, extract:
 
 Rules:
 - comparison + rich   → message compares two tickers ("vs", "compare", "versus")
-- news_only  + news   → message asks for news, headlines, or recent updates ONLY
+- news_only  + news   → message asks for news/headlines ONLY (no analysis/detail words)
 - chart      + minimal→ message asks for a chart, graph, or plot of moving averages
 - single     + rich   → message has words like: analysis, report, detail, full, deep, overview
+                        NOTE: if message has BOTH news words AND detail/analysis words → single + rich (not news_only)
 - single     + minimal→ plain ticker query with no detail keywords
 - invalid    + minimal→ no valid ticker symbol found
 
@@ -25,6 +26,10 @@ Examples:
   "TSLA latest news"               → news_only,  ["TSLA"],          news
   "give me NVDA report"            → single,     ["NVDA"],          rich
   "what is the price of AMZN"      → single,     ["AMZN"],          minimal
+  "COIN detail"                    → single,     ["COIN"],          rich
+  "coinbase detail"                → single,     ["COIN"],          rich
+  "AAPL news and analysis"         → single,     ["AAPL"],          rich
+  "TSLA full report with news"     → single,     ["TSLA"],          rich
   "chart AAPL"                     → chart,      ["AAPL"],          minimal
   "TSLA moving average chart"      → chart,      ["TSLA"],          minimal
   "plot MSFT MA"                   → chart,      ["MSFT"],          minimal

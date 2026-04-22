@@ -25,7 +25,7 @@ import logging
 from datetime import timezone
 
 from src.schemas.agent_state import AgentState
-from src.schemas.ticker_data import AnalystOutput, Fundamentals, NewsBundle, TickerData
+from src.schemas.ticker_data import AnalystOutput, Fundamentals, MAChartData, NewsBundle, TickerData
 
 logger = logging.getLogger(__name__)
 
@@ -83,8 +83,24 @@ def _fundamentals_snapshot(f: Fundamentals, ticker: str) -> str:
     return "\n".join(lines)
 
 
-def _format_rich(ticker: str, data: TickerData, output: AnalystOutput) -> str:
-    """Header + fundamentals snapshot + summary + key points."""
+def _format_news_section(news: NewsBundle) -> str:
+    """Compact news headlines for embedding in rich format."""
+    lines = ["*Recent News*"]
+    for i, item in enumerate(news.items[:3], 1):
+        source = f" _{item.source}_" if item.source else ""
+        lines.append(f"{i}. {item.title}{source}")
+    return "\n".join(lines)
+
+
+def _format_rich(
+    ticker: str,
+    data: TickerData,
+    output: AnalystOutput,
+    chart_data: MAChartData | None = None,
+) -> str:
+    """Header + fundamentals snapshot + summary + key points + optional news + chart."""
+    from src.tools.chart_renderer import render_ma_chart
+
     parts: list[str] = [f"*{ticker}*  {_completeness_bar(data.data_completeness_score)}"]
 
     if data.fundamentals:
@@ -105,8 +121,14 @@ def _format_rich(ticker: str, data: TickerData, output: AnalystOutput) -> str:
         points = "\n".join(f"• {kp}" for kp in output.key_points)
         parts.append(points)
 
+    if data.news and data.news.items:
+        parts.append(_format_news_section(data.news))
+
     if data.warnings:
         parts.append(f"⚠️ _{'; '.join(data.warnings)}_")
+
+    if chart_data and chart_data.prices:
+        parts.append(render_ma_chart(chart_data))
 
     return "\n\n".join(parts)
 
@@ -150,6 +172,7 @@ def run(state: AgentState) -> dict:
     analyst_outputs: dict[str, AnalystOutput] = state.get("analyst_outputs", {})
     data_by_ticker: dict[str, TickerData] = state.get("data_by_ticker", {})
     tickers: list[str] = state.get("tickers", [])
+    chart_data: MAChartData | None = state.get("chart_data")
     run_id: str = state.get("run_id", "")
 
     logger.info("Formatter: run_id=%s style=%s tickers=%s", run_id, format_style, tickers)
@@ -172,7 +195,9 @@ def run(state: AgentState) -> dict:
 
         elif format_style == "rich":
             if output:
-                blocks.append(_format_rich(ticker, data, output))
+                # Pass chart_data only for single-ticker queries
+                cd = chart_data if len(tickers) == 1 else None
+                blocks.append(_format_rich(ticker, data, output, chart_data=cd))
             else:
                 blocks.append(f"*{ticker}* — analysis unavailable.")
 

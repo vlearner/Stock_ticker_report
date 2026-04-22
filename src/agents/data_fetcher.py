@@ -20,9 +20,10 @@ import asyncio
 import logging
 
 from src.schemas.agent_state import AgentState
-from src.schemas.ticker_data import Fundamentals, MovingAverages, TickerData, VolumeData
+from src.schemas.ticker_data import Fundamentals, MAChartData, MovingAverages, TickerData, VolumeData
 from src.tools.yfinance_tools import (
     fetch_fundamentals,
+    fetch_ma_chart_data,
     fetch_moving_averages,
     fetch_volume_data,
 )
@@ -105,18 +106,27 @@ async def run(state: AgentState) -> dict:
         ``{"data_by_ticker": {ticker: TickerData, ...}}``
     """
     tickers: list[str] = state.get("tickers", [])
+    format_style: str = state.get("format_style", "minimal")
     run_id: str = state.get("run_id", "")
     logger.info("DataFetcher: run_id=%s tickers=%s", run_id, tickers)
     if not tickers:
         logger.warning("DataFetcher: no tickers in state — returning empty")
         return {"data_by_ticker": {}}
 
-    ticker_data_list = await asyncio.gather(
-        *[_fetch_one(t) for t in tickers],
-        return_exceptions=False,  # _fetch_one never raises — failures become warnings
-    )
+    # For rich single-ticker queries, fetch chart data concurrently
+    fetch_chart = format_style == "rich" and len(tickers) == 1
 
-    data_by_ticker = {t: td for t, td in zip(tickers, ticker_data_list)}
+    tasks: list = [_fetch_one(t) for t in tickers]
+    if fetch_chart:
+        tasks.append(fetch_ma_chart_data(tickers[0]))
+
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    ticker_data_list = results[:len(tickers)]
+    data_by_ticker: dict[str, TickerData] = {
+        t: td for t, td in zip(tickers, ticker_data_list)
+        if not isinstance(td, Exception)
+    }
 
     for ticker, td in data_by_ticker.items():
         logger.info(
@@ -126,4 +136,13 @@ async def run(state: AgentState) -> dict:
             len(td.warnings),
         )
 
-    return {"data_by_ticker": data_by_ticker}
+    result: dict = {"data_by_ticker": data_by_ticker}
+
+    if fetch_chart:
+        chart_result = results[len(tickers)]
+        if isinstance(chart_result, MAChartData):
+            result["chart_data"] = chart_result
+        else:
+            logger.warning("DataFetcher: chart data fetch failed — %s", chart_result)
+
+    return result
