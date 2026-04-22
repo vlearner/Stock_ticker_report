@@ -1,53 +1,17 @@
 """Unicode text chart renderer for Telegram.
 
-Renders a connected price + SMA50 + SMA200 line chart as a monospace
-code block — no image files needed.
-
-Character scheme:
-  ─  Price (horizontal data points, │ for vertical transitions)
-  ┄  SMA50 (dashed)
-  ╌  SMA200 (dot-dash)
+Uses asciichartpy for the price line (╭─╮╰╯│ connected style) and
+overlays SMA50/SMA200 with distinct dashed characters on top.
 """
 
 from __future__ import annotations
 
+import asciichartpy
+
 from src.schemas.ticker_data import MAChartData
 
-_AXIS_V = "┤"
-_AXIS_H = "─"
-_CORNER = "┼"
-
-
-def _paint_price(grid: list[list[str]], rows: list[int | None]) -> None:
-    """Price line: ─ at data points, │ for vertical transitions."""
-    prev_r: int | None = None
-    for col, r in enumerate(rows):
-        if r is None:
-            prev_r = None
-            continue
-        if prev_r is not None and prev_r != r:
-            lo, hi = min(prev_r, r), max(prev_r, r)
-            for fill_r in range(lo, hi + 1):
-                if grid[fill_r][col] == " ":
-                    grid[fill_r][col] = "│"
-        grid[r][col] = "─"
-        prev_r = r
-
-
-def _paint_sma(grid: list[list[str]], rows: list[int | None], char: str) -> None:
-    """SMA line: same char for data points and vertical fills."""
-    prev_r: int | None = None
-    for col, r in enumerate(rows):
-        if r is None:
-            prev_r = None
-            continue
-        if prev_r is not None and prev_r != r:
-            lo, hi = min(prev_r, r), max(prev_r, r)
-            for fill_r in range(lo, hi + 1):
-                if grid[fill_r][col] == " ":
-                    grid[fill_r][col] = char
-        grid[r][col] = char
-        prev_r = r
+_SMA50_CHAR  = "┄"
+_SMA200_CHAR = "╌"
 
 
 def render_ma_chart(data: MAChartData, width: int = 38, height: int = 10) -> str:
@@ -77,54 +41,59 @@ def render_ma_chart(data: MAChartData, width: int = 38, height: int = 10) -> str
     y_max = max(all_vals)
     y_range = y_max - y_min or 1.0
 
+    # --- Price line via asciichartpy ---
+    chart_str = asciichartpy.plot(
+        s_prices,
+        {"height": height - 1, "min": y_min, "max": y_max, "format": "{:7.1f}"},
+    )
+    # Split into mutable character grid rows
+    raw_lines = chart_str.split("\n")
+    # Pad every line to a consistent width so we can safely index into it
+    axis_width = next(
+        (line.index("┤") + 1 for line in raw_lines if "┤" in line), 0
+    )
+    total_width = axis_width + width
+    grid = [list(line.ljust(total_width)) for line in raw_lines]
+
+    # --- Overlay SMA lines ---
+    # Row 0 = y_max, row (height-1) = y_min  (same mapping asciichartpy uses)
     def to_row(val: float | None) -> int | None:
         if val is None:
             return None
-        return max(0, min(height - 1, height - 1 - round((val - y_min) / y_range * (height - 1))))
+        return max(0, min(height - 1, round((y_max - val) / y_range * (height - 1))))
 
-    s_price_rows = [to_row(v) for v in s_prices]
-    s_sma50_rows = [to_row(v) for v in s_sma50]
-    s_sma200_rows = [to_row(v) for v in s_sma200]
+    for col_i, (v50, v200) in enumerate(zip(s_sma50, s_sma200)):
+        chart_col = axis_width + col_i
+        for val, char in ((v50, _SMA50_CHAR), (v200, _SMA200_CHAR)):
+            r = to_row(val)
+            if r is not None and r < len(grid) and chart_col < len(grid[r]):
+                if grid[r][chart_col] in (" ", "\x00"):
+                    grid[r][chart_col] = char
 
-    grid = [[" "] * width for _ in range(height)]
+    chart_lines = ["".join(row).rstrip() for row in grid]
 
-    # Paint lowest priority first so higher priority overwrites
-    _paint_sma(grid, s_sma200_rows, "╌")
-    _paint_sma(grid, s_sma50_rows, "┄")
-    _paint_price(grid, s_price_rows)
-
-    y_label_w = max(len(f"{y_max:.1f}"), len(f"{y_min:.1f}")) + 1
-
-    lines: list[str] = []
-    for r in range(height):
-        y_val = y_max - (r / (height - 1)) * y_range
-        label = f"{y_val:{y_label_w}.1f}{_AXIS_V}"
-        lines.append(label + "".join(grid[r]))
-
-    lines.append(" " * y_label_w + _CORNER + _AXIS_H * width)
-
-    # X-axis: 3 date labels at start, mid, end
+    # --- X-axis date labels ---
     if any(s_dates):
         d_start = s_dates[0]
         d_mid   = s_dates[width // 2]
         d_end   = s_dates[-1]
-        prefix  = " " * (y_label_w + 1)
+        prefix  = " " * (axis_width)
         row     = d_start
         mid_target = width // 2 - len(d_mid) // 2
-        gap_mid = mid_target - len(d_start)
-        if gap_mid > 0:
-            row += " " * gap_mid + d_mid
-        filled = len(row)
+        gap = mid_target - len(d_start)
+        if gap > 0:
+            row += " " * gap + d_mid
         end_target = width - len(d_end)
-        if end_target > filled:
-            row += " " * (end_target - filled) + d_end
-        lines.append(prefix + row)
+        if end_target > len(row):
+            row += " " * (end_target - len(row)) + d_end
+        chart_lines.append(prefix + row)
 
-    legend_parts = ["─ Price"]
+    # --- Header with legend ---
+    legend_parts = ["╭─ Price"]
     if any(v is not None for v in s_sma50):
-        legend_parts.append("┄ SMA50")
+        legend_parts.append(f"{_SMA50_CHAR} SMA50")
     if any(v is not None for v in s_sma200):
-        legend_parts.append("╌ SMA200")
+        legend_parts.append(f"{_SMA200_CHAR} SMA200")
 
     header = f"*{data.ticker}* — {len(data.prices)}d  {'  '.join(legend_parts)}"
-    return f"{header}\n```\n" + "\n".join(lines) + "\n```"
+    return f"{header}\n```\n" + "\n".join(chart_lines) + "\n```"
