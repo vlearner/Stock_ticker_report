@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StockTicker AI — Offline</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:     #0f1115;
+      --card:   #161a22;
+      --accent: #4c8bff;
+      --muted:  #5a6172;
+      --text:   #e8eaf0;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    .icon {
+      width: 80px;
+      height: 80px;
+      margin-bottom: 1.5rem;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      color: var(--text);
+    }
+
+    p {
+      color: var(--muted);
+      max-width: 320px;
+      line-height: 1.6;
+      margin-bottom: 2rem;
+    }
+
+    button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 0.75rem 1.75rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    button:hover { opacity: 0.85; }
+
+    .brand {
+      margin-top: 3rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+  </style>
+</head>
+<body>
+  <!-- Stock chart icon (inline SVG) -->
+  <svg class="icon" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <rect width="80" height="80" rx="16" fill="#161a22"/>
+    <polyline
+      points="8,60 18,50 28,62 40,40 50,46 60,28 72,18"
+      stroke="#4c8bff"
+      stroke-width="3.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      fill="none"
+    />
+    <polyline
+      points="8,60 18,50 28,62 40,40 50,46 60,28 72,18 72,68 8,68"
+      stroke="none"
+      fill="#4c8bff"
+      fill-opacity="0.12"
+    />
+  </svg>
+
+  <h1>You're offline</h1>
+  <p>Connect to the internet to use StockTicker AI and get live market data and analysis.</p>
+  <button onclick="location.reload()">Try again</button>
+
+  <div class="brand">StockTicker AI</div>
+</body>
+</html>

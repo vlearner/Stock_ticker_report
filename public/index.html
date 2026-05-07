@@ -3,12 +3,41 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Stock Ticker Report — Demo</title>
+  <title>StockTicker AI — Demo</title>
+
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="/manifest.json" />
+
+  <!-- Theme colour (browser chrome on mobile) -->
+  <meta name="theme-color" content="#4c8bff" />
+
+  <!-- iOS home-screen PWA -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="StockTicker" />
+  <link rel="apple-touch-icon" href="/icons/icon-180.png" />
+
+  <!-- Windows tile -->
+  <meta name="msapplication-TileColor" content="#0f1115" />
+  <meta name="msapplication-TileImage" content="/icons/icon-192.png" />
+
+  <!-- Open Graph / share preview -->
+  <meta property="og:title" content="StockTicker AI" />
+  <meta property="og:description" content="AI-powered stock analysis — real-time data, news &amp; insights" />
+  <meta property="og:image" content="/icons/icon-512.png" />
+
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
+  <!-- Install prompt banner (shown dynamically by app.js) -->
+  <div id="install-banner" hidden>
+    <span id="install-banner-text">Install StockTicker AI as an app</span>
+    <button id="install-btn" type="button">Install</button>
+    <button id="install-dismiss" type="button" aria-label="Dismiss">✕</button>
+  </div>
+
   <header class="topbar">
-    <div class="title">Stock Ticker Report <span class="muted">Demo</span></div>
+    <div class="title">StockTicker <span class="muted">AI</span></div>
     <div class="badge" id="counter" aria-live="polite">5 queries remaining</div>
   </header>
 
@@ -42,5 +71,92 @@
   </footer>
 
   <script src="/app.js"></script>
+
+  <!-- Service Worker registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' })
+          .then(reg => {
+            // Notify app.js once a new SW is installed and waiting
+            reg.addEventListener('updatefound', () => {
+              const newSW = reg.installing;
+              if (!newSW) return;
+              newSW.addEventListener('statechange', () => {
+                if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+                  document.dispatchEvent(new CustomEvent('sw-update-ready'));
+                }
+              });
+            });
+          })
+          .catch(err => console.warn('[SW] Registration failed:', err));
+      });
+    }
+
+    // ── Install-prompt (Android / Desktop Chrome & Edge) ──────────────────────
+    let deferredPrompt = null;
+
+    window.addEventListener('beforeinstallprompt', e => {
+      e.preventDefault();
+      deferredPrompt = e;
+      showInstallBanner('Install StockTicker AI as an app');
+    });
+
+    window.addEventListener('appinstalled', () => {
+      hideInstallBanner();
+      deferredPrompt = null;
+    });
+
+    // ── iOS Safari hint ───────────────────────────────────────────────────────
+    function isIosSafari() {
+      const ua = navigator.userAgent;
+      return /iPhone|iPad|iPod/.test(ua) &&
+             /Safari/.test(ua) &&
+             !('standalone' in navigator && navigator.standalone);
+    }
+
+    if (isIosSafari()) {
+      showInstallBanner('Tap Share → "Add to Home Screen" to install');
+    }
+
+    // ── Banner helpers ────────────────────────────────────────────────────────
+    function showInstallBanner(msg) {
+      const banner = document.getElementById('install-banner');
+      const text   = document.getElementById('install-banner-text');
+      if (!banner) return;
+      text.textContent = msg;
+      banner.hidden = false;
+    }
+
+    function hideInstallBanner() {
+      const banner = document.getElementById('install-banner');
+      if (banner) banner.hidden = true;
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const btn     = document.getElementById('install-btn');
+      const dismiss = document.getElementById('install-dismiss');
+
+      if (btn) {
+        btn.addEventListener('click', async () => {
+          if (!deferredPrompt) return;
+          deferredPrompt.prompt();
+          const { outcome } = await deferredPrompt.userChoice;
+          if (outcome === 'accepted') hideInstallBanner();
+          deferredPrompt = null;
+        });
+      }
+
+      if (dismiss) {
+        dismiss.addEventListener('click', hideInstallBanner);
+      }
+
+      // Hide install button on iOS (no imperative prompt available)
+      if (isIosSafari()) {
+        const installBtn = document.getElementById('install-btn');
+        if (installBtn) installBtn.hidden = true;
+      }
+    });
+  </script>
 </body>
 </html>

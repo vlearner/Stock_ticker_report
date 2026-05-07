@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="#0f1115"/>
+
+  <!-- Gradient fill under chart line -->
+  <defs>
+    <linearGradient id="fillGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4c8bff" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#4c8bff" stop-opacity="0.02"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Area fill under line -->
+  <polygon
+    points="56,450 113,358 169,430 245,272 302,310 358,196 414,224 456,112 456,450"
+    fill="url(#fillGrad)"
+  />
+
+  <!-- Stock chart line -->
+  <polyline
+    points="56,400 113,330 169,400 245,254 302,285 358,175 414,205 456,105"
+    stroke="#4c8bff"
+    stroke-width="18"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    fill="none"
+  />
+
+  <!-- Dots at key peaks -->
+  <circle cx="245" cy="254" r="10" fill="#4c8bff"/>
+  <circle cx="358" cy="175" r="10" fill="#4c8bff"/>
+  <circle cx="456" cy="105" r="12" fill="#4c8bff"/>
+</svg>
